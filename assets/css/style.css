@@ -1,0 +1,403 @@
+/* ── Reset & base ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --citrus-yellow: #f5c518;
+  --citrus-green:  #4caf50;
+  --dark-bg:       #1a1a1a;
+  --panel-bg:      #242424;
+  --panel-border:  #333;
+  --text-primary:  #f0f0f0;
+  --text-muted:    #888;
+  --link:          #f5c518;
+  --link-hover:    #ffe066;
+  --folder-icon:   #f5c518;
+  --file-icon:     #aaa;
+  --radius:        8px;
+  --transition:    0.18s ease;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--dark-bg);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Banner ──────────────────────────────────────────────────────────────── */
+header.banner {
+  background: linear-gradient(135deg, #111 0%, #2b2b00 60%, #111 100%);
+  border-bottom: 3px solid var(--citrus-yellow);
+  padding: 2rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  text-align: center;
+}
+
+.logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo-svg {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 12px #f5c51880);
+}
+
+.band-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.band-title .name {
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: var(--citrus-yellow);
+  text-shadow: 0 0 24px #f5c51840;
+  text-transform: uppercase;
+}
+
+.band-title .tagline {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-top: 0.3rem;
+}
+
+/* ── Nav bar ─────────────────────────────────────────────────────────────── */
+nav.site-nav {
+  background: #111;
+  border-bottom: 1px solid var(--panel-border);
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+nav.site-nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius);
+  transition: background var(--transition), color var(--transition);
+}
+
+nav.site-nav a:hover,
+nav.site-nav a.active {
+  background: #2b2b00;
+  color: var(--citrus-yellow);
+}
+
+/* ── Main layout ─────────────────────────────────────────────────────────── */
+main {
+  flex: 1;
+  max-width: 860px;
+  width: 100%;
+  margin: 2rem auto;
+  padding: 0 1.25rem;
+}
+
+.section-header {
+  margin-bottom: 1.25rem;
+}
+
+.section-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-header h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--panel-border);
+}
+
+/* ── File tree ───────────────────────────────────────────────────────────── */
+.tree-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tree-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  background: #1e1e1e;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.tree-toolbar button {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.65rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.tree-toolbar button:hover {
+  background: #2b2b00;
+  border-color: var(--citrus-yellow);
+  color: var(--citrus-yellow);
+}
+
+/* Tree root list */
+ul.tree {
+  list-style: none;
+  padding: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+ul.tree ul {
+  list-style: none;
+  padding: 0;
+  /* revealed by JS */
+  display: none;
+}
+
+ul.tree ul.open {
+  display: block;
+}
+
+/* Each tree item row */
+.tree li > .tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.28rem 0.75rem;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background var(--transition);
+  user-select: none;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.tree li > .tree-row:hover {
+  background: #2e2e2e;
+}
+
+/* Indentation — driven by data-depth */
+.tree li[data-depth="1"] > .tree-row { padding-left: 1.5rem; }
+.tree li[data-depth="2"] > .tree-row { padding-left: 2.8rem; }
+.tree li[data-depth="3"] > .tree-row { padding-left: 4.1rem; }
+
+/* Icons */
+.icon-folder, .icon-file, .icon-caret {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.icon-folder { color: var(--folder-icon); }
+.icon-file   { color: var(--file-icon); }
+
+.caret {
+  font-size: 0.65em;
+  color: var(--text-muted);
+  transition: transform var(--transition);
+  width: 0.8rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.caret.open {
+  transform: rotate(90deg);
+}
+
+.tree-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* folder labels */
+.tree-row.is-folder .tree-label {
+  font-weight: 600;
+}
+
+/* clickable link rows */
+.tree-row.is-link {
+  color: var(--link);
+}
+
+.tree-row.is-link:hover {
+  color: var(--link-hover);
+}
+
+.tree-badge {
+  font-size: 0.65rem;
+  background: #2b2b00;
+  color: var(--citrus-yellow);
+  border: 1px solid #4a4a00;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+
+/* ── Members strip ───────────────────────────────────────────────────────── */
+.members-strip {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.75rem;
+}
+
+.member-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: border-color var(--transition), background var(--transition);
+  flex: 1 1 120px;
+}
+
+.member-card:hover {
+  border-color: var(--citrus-yellow);
+  background: #2b2b00;
+}
+
+.member-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  color: var(--citrus-yellow);
+  font-weight: 700;
+  border: 2px solid var(--panel-border);
+}
+
+.member-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+footer {
+  background: #111;
+  border-top: 1px solid var(--panel-border);
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+/* ── Sub-page content ────────────────────────────────────────────────────── */
+.page-hero {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.page-hero .hero-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.page-hero h1 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--citrus-yellow);
+}
+
+.page-hero p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 1.25rem;
+  transition: color var(--transition);
+}
+
+.back-link:hover { color: var(--citrus-yellow); }
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.info-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.info-card:hover {
+  border-color: var(--citrus-yellow);
+  background: #2b2b00;
+}
+
+.info-card .card-icon { font-size: 1.4rem; margin-bottom: 0.4rem; }
+.info-card .card-title { font-weight: 700; font-size: 0.9rem; }
+.info-card .card-desc  { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 540px) {
+  .logo-wrap { flex-direction: column; gap: 0.5rem; }
+  .band-title .name { font-size: 2.2rem; }
+}

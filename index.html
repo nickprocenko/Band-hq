@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Citrus – Band HQ</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+  <!-- ── Banner ──────────────────────────────────────────────────────────── -->
+  <header class="banner">
+    <div class="logo-wrap">
+      <!-- Citrus slice SVG logo -->
+      <svg class="logo-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-label="Citrus logo">
+        <circle cx="50" cy="50" r="46" fill="#f5c518" stroke="#c9a000" stroke-width="3"/>
+        <circle cx="50" cy="50" r="36" fill="#fff8dc" stroke="#e0b000" stroke-width="1.5"/>
+        <!-- Citrus segments -->
+        <line x1="50" y1="14" x2="50" y2="86" stroke="#e0b000" stroke-width="1.5"/>
+        <line x1="14" y1="50" x2="86" y2="50" stroke="#e0b000" stroke-width="1.5"/>
+        <line x1="22" y1="22" x2="78" y2="78" stroke="#e0b000" stroke-width="1.5"/>
+        <line x1="78" y1="22" x2="22" y2="78" stroke="#e0b000" stroke-width="1.5"/>
+        <!-- Center dot -->
+        <circle cx="50" cy="50" r="5" fill="#f5c518" stroke="#c9a000" stroke-width="1"/>
+      </svg>
+
+      <div class="band-title">
+        <span class="name">Citrus</span>
+        <span class="tagline">Band HQ &nbsp;·&nbsp; Shared Workspace</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Navigation ──────────────────────────────────────────────────────── -->
+  <nav class="site-nav" aria-label="Site navigation">
+    <a href="index.html" class="active">🏠 Home</a>
+    <a href="pages/songs.html">🎵 Songs</a>
+    <a href="pages/setlists.html">📝 Setlists</a>
+    <a href="pages/media.html">📸 Media</a>
+    <a href="pages/releases.html">💿 Releases</a>
+    <a href="pages/live.html">🎤 Live</a>
+    <a href="pages/members.html">👥 Members</a>
+    <a href="pages/suggested.html">🔍 Suggested</a>
+    <a href="pages/archive.html">🗄️ Archive</a>
+  </nav>
+
+  <!-- ── Main body ────────────────────────────────────────────────────────── -->
+  <main>
+
+    <div class="section-header">
+      <h2>📁 File Structure</h2>
+    </div>
+
+    <!-- File-tree panel -->
+    <div class="tree-panel">
+      <div class="tree-toolbar">
+        <button id="btn-expand">▶ Expand All</button>
+        <button id="btn-collapse">▼ Collapse All</button>
+      </div>
+      <!-- Tree is injected here by main.js -->
+      <div id="file-tree"></div>
+    </div>
+
+    <!-- Members quick-access -->
+    <div class="section-header" style="margin-top:2rem;">
+      <h2>👥 Members</h2>
+    </div>
+    <div class="members-strip">
+      <a class="member-card" href="pages/member-johnny.html">
+        <div class="member-avatar">J</div>
+        <span class="member-name">Johnny</span>
+      </a>
+      <a class="member-card" href="pages/member-damian.html">
+        <div class="member-avatar">D</div>
+        <span class="member-name">Damian</span>
+      </a>
+      <a class="member-card" href="pages/member-sam.html">
+        <div class="member-avatar">S</div>
+        <span class="member-name">Sam</span>
+      </a>
+      <a class="member-card" href="pages/member-nick.html">
+        <div class="member-avatar">N</div>
+        <span class="member-name">Nick</span>
+      </a>
+      <a class="member-card" href="pages/member-matt.html">
+        <div class="member-avatar">M</div>
+        <span class="member-name">Matt</span>
+      </a>
+    </div>
+
+  </main>
+
+  <footer>
+    &copy; <span id="yr"></span> Citrus &nbsp;·&nbsp; Band HQ
+    <script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
