@@ -45,10 +45,12 @@ export default function App() {
   const [rehearsals, setRehearsals] = useState([]);
   const [members, setMembers] = useState([]);
   const [memberSongs, setMemberSongs] = useState([]);
+  const [rehearsalSongs, setRehearsalSongs] = useState([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [memberName, setMemberName] = useState("");
   const [songInputByFolder, setSongInputByFolder] = useState({});
   const [songDraftById, setSongDraftById] = useState({});
+  const [rehearsalSongInput, setRehearsalSongInput] = useState({});
   const [rehearsalForm, setRehearsalForm] = useState(initialRehearsalForm);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -58,13 +60,19 @@ export default function App() {
   const songsByMemberAndFolder = useMemo(() => {
     return memberSongs.reduce((acc, song) => {
       const key = `${song.member_id}:${song.folder}`;
-      if (!acc[key]) {
-        acc[key] = [];
-      }
+      if (!acc[key]) acc[key] = [];
       acc[key].push(song);
       return acc;
     }, {});
   }, [memberSongs]);
+
+  const songsByRehearsal = useMemo(() => {
+    return rehearsalSongs.reduce((acc, song) => {
+      if (!acc[song.rehearsal_id]) acc[song.rehearsal_id] = [];
+      acc[song.rehearsal_id].push(song);
+      return acc;
+    }, {});
+  }, [rehearsalSongs]);
 
   const selectedMember = useMemo(
     () => members.find((member) => member.id === selectedMemberId) || null,
@@ -79,7 +87,7 @@ export default function App() {
     setLoading(true);
     setErrorMessage("");
 
-    const [rehearsalsResponse, membersResponse, memberSongsResponse] = await Promise.all([
+    const [rehearsalsResponse, membersResponse, memberSongsResponse, rehearsalSongsResponse] = await Promise.all([
       supabase
         .from("rehearsals")
         .select("id, title, rehearsal_date, rehearsal_start_time, location, status, drive_url")
@@ -91,14 +99,19 @@ export default function App() {
       supabase
         .from("member_song_lists")
         .select("id, member_id, folder, song_title, created_at")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("rehearsal_songs")
+        .select("id, rehearsal_id, song_title, created_at")
         .order("created_at", { ascending: true })
     ]);
 
-    if (rehearsalsResponse.error || membersResponse.error || memberSongsResponse.error) {
+    if (rehearsalsResponse.error || membersResponse.error || memberSongsResponse.error || rehearsalSongsResponse.error) {
       setErrorMessage(
         rehearsalsResponse.error?.message ||
           membersResponse.error?.message ||
           memberSongsResponse.error?.message ||
+          rehearsalSongsResponse.error?.message ||
           "Could not load data."
       );
       setLoading(false);
@@ -108,6 +121,7 @@ export default function App() {
     setRehearsals(rehearsalsResponse.data || []);
     setMembers(membersResponse.data || []);
     setMemberSongs(memberSongsResponse.data || []);
+    setRehearsalSongs(rehearsalSongsResponse.data || []);
 
     if (!selectedMemberId && (membersResponse.data || []).length) {
       setSelectedMemberId(membersResponse.data[0].id);
@@ -271,6 +285,32 @@ export default function App() {
     );
   }
 
+  async function addRehearsalSong(rehearsalId) {
+    const title = rehearsalSongInput[rehearsalId]?.trim();
+    if (!canSubmit || !title) return;
+
+    const { error } = await supabase.from("rehearsal_songs").insert([
+      { rehearsal_id: rehearsalId, song_title: title }
+    ]);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setRehearsalSongInput((prev) => ({ ...prev, [rehearsalId]: "" }));
+    await loadData();
+  }
+
+  async function removeRehearsalSong(songId) {
+    const { error } = await supabase.from("rehearsal_songs").delete().eq("id", songId);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    await loadData();
+  }
+
   return (
     <div className="page">
       <header className="hero">
@@ -420,6 +460,52 @@ export default function App() {
                           Open Drive media
                         </a>
                       )}
+
+                      <details className="folder folder-collapsible set-list" key={item.id}>
+                        <summary className="folder-summary">
+                          <span>Set list</span>
+                          <span className="tiny-label">
+                            {(songsByRehearsal[item.id] || []).length} songs
+                          </span>
+                        </summary>
+                        <div className="folder-body">
+                          <div className="song-grid">
+                            {(songsByRehearsal[item.id] || []).map((song) => (
+                              <div className="song-row compact-song-row" key={song.id}>
+                                <span className="song-label">{song.song_title}</span>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => removeRehearsalSong(song.id)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="song-row compact-song-row add-row">
+                            <input
+                              value={rehearsalSongInput[item.id] || ""}
+                              onChange={(event) =>
+                                setRehearsalSongInput((prev) => ({
+                                  ...prev,
+                                  [item.id]: event.target.value
+                                }))
+                              }
+                              placeholder="Add song to set"
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  addRehearsalSong(item.id);
+                                }
+                              }}
+                            />
+                            <button type="button" onClick={() => addRehearsalSong(item.id)}>
+                              Add
+                            </button>
+                          </div>
+                        </div>
+                      </details>
                     </div>
                     <div className="file-actions">
                       <select

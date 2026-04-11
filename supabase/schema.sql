@@ -2,7 +2,8 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.rehearsals (
   id uuid primary key default gen_random_uuid(),
-  title text not null,
+  title text
+   not null,
   rehearsal_date date,
   rehearsal_start_time time,
   location text,
@@ -56,10 +57,18 @@ create table if not exists public.request_approvals (
   unique (request_id, approver_member_id)
 );
 
+create table if not exists public.rehearsal_songs (
+  id uuid primary key default gen_random_uuid(),
+  rehearsal_id uuid not null references public.rehearsals(id) on delete cascade,
+  song_title text not null,
+  created_at timestamptz not null default now()
+);
+
 alter table public.rehearsals enable row level security;
 alter table public.performances enable row level security;
 alter table public.band_members enable row level security;
 alter table public.member_song_lists enable row level security;
+alter table public.rehearsal_songs enable row level security;
 alter table public.rehearsal_song_requests enable row level security;
 alter table public.request_approvals enable row level security;
 
@@ -71,6 +80,8 @@ drop policy if exists "enable_read_band_members" on public.band_members;
 drop policy if exists "enable_write_band_members" on public.band_members;
 drop policy if exists "enable_read_member_song_lists" on public.member_song_lists;
 drop policy if exists "enable_write_member_song_lists" on public.member_song_lists;
+drop policy if exists "enable_read_rehearsal_songs" on public.rehearsal_songs;
+drop policy if exists "enable_write_rehearsal_songs" on public.rehearsal_songs;
 drop policy if exists "enable_read_rehearsal_song_requests" on public.rehearsal_song_requests;
 drop policy if exists "enable_write_rehearsal_song_requests" on public.rehearsal_song_requests;
 drop policy if exists "enable_read_request_approvals" on public.request_approvals;
@@ -116,6 +127,17 @@ create policy "enable_read_member_song_lists"
 
 create policy "enable_write_member_song_lists"
   on public.member_song_lists
+  for all
+  using (true)
+  with check (true);
+
+create policy "enable_read_rehearsal_songs"
+  on public.rehearsal_songs
+  for select
+  using (true);
+
+create policy "enable_write_rehearsal_songs"
+  on public.rehearsal_songs
   for all
   using (true)
   with check (true);
