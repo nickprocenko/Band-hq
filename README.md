@@ -97,12 +97,18 @@ Vercel build settings (default):
 Use the SQL in `supabase/schema.sql` to create the first two tables:
 - `rehearsals`
 - `performances`
+- `band_members`
+- `member_song_lists`
+- `rehearsal_song_requests`
+- `request_approvals`
 
 Current app capabilities:
-- Create rehearsal and performance entries
-- Read and list both types of entries
-- Update status from the dashboard
-- Store optional Google Drive link per item
+- Dark theme workspace
+- Create rehearsal entries
+- Create a member folder and nested categories: covers, originals, songs_im_learning
+- Edit song lists inside each member folder
+- Request songs for upcoming rehearsals
+- Approve or reject requests by different band members (2 approvals marks approved)
 
 Security note:
 - The starter SQL uses open RLS policies for fast setup. Restrict these policies once you add authentication.
