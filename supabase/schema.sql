@@ -4,11 +4,14 @@ create table if not exists public.rehearsals (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   rehearsal_date date,
+  rehearsal_start_time time,
   location text,
   status text not null default 'planned' check (status in ('planned', 'draft', 'confirmed', 'completed')),
   drive_url text,
   created_at timestamptz not null default now()
 );
+
+alter table public.rehearsals add column if not exists rehearsal_start_time time;
 
 create table if not exists public.performances (
   id uuid primary key default gen_random_uuid(),

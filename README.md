@@ -104,11 +104,10 @@ Use the SQL in `supabase/schema.sql` to create the first two tables:
 
 Current app capabilities:
 - Dark theme workspace
-- Create rehearsal entries
+- Condensed file-style pages for rehearsals and members
+- Create rehearsal entries with date, start time, location, status, and media link
 - Create a member folder and nested categories: covers, originals, songs_im_learning
-- Edit song lists inside each member folder
-- Request songs for upcoming rehearsals
-- Approve or reject requests by different band members (2 approvals marks approved)
+- Edit song lists inside each member folder without expanding every member at once
 
 Security note:
 - The starter SQL uses open RLS policies for fast setup. Restrict these policies once you add authentication.
