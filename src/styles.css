@@ -89,6 +89,38 @@ h2 {
   font-size: 1.05rem;
 }
 
+.tiny-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(17, 24, 39, 0.65);
+}
+
+.callout {
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  margin: 0 0 1rem;
+}
+
+.callout h3 {
+  margin: 0 0 0.15rem;
+  font-size: 0.98rem;
+}
+
+.callout p {
+  margin: 0;
+  font-size: 0.93rem;
+}
+
+.callout.warning {
+  background: rgba(255, 179, 71, 0.2);
+  border: 1px solid rgba(255, 179, 71, 0.5);
+}
+
+.callout.error {
+  background: rgba(242, 95, 92, 0.16);
+  border: 1px solid rgba(242, 95, 92, 0.4);
+}
+
 button {
   border: 0;
   border-radius: 999px;
@@ -97,6 +129,34 @@ button {
   color: white;
   background: linear-gradient(135deg, var(--teal), #117f9a);
   cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid rgba(17, 24, 39, 0.2);
+  border-radius: 10px;
+  padding: 0.52rem 0.62rem;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.52rem;
+  margin-bottom: 0.75rem;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 ul {
@@ -140,6 +200,21 @@ li:last-child {
   white-space: nowrap;
 }
 
+.tag-select {
+  width: auto;
+  min-width: 120px;
+  background: rgba(242, 95, 92, 0.18);
+  color: #8d1f21;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.empty {
+  color: rgba(17, 24, 39, 0.62);
+  font-style: italic;
+}
+
 .note {
   margin: 0.2rem 0 0.8rem;
 }
@@ -160,6 +235,10 @@ a {
 
 @media (max-width: 840px) {
   .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .split {
     grid-template-columns: 1fr;
   }
 }

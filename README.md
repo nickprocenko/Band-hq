@@ -75,16 +75,34 @@ Requirements:
 
 Commands:
 1. `npm install`
-2. `npm run dev`
-3. Open the local URL shown by Vite
+2. Copy `.env.example` to `.env.local` and fill Supabase values
+3. Create tables by running `supabase/schema.sql` in the Supabase SQL editor
+4. `npm run dev`
+5. Open the local URL shown by Vite
 
 ## Deploy On Vercel
 
 1. Push this repo to GitHub
 2. In Vercel, click New Project and import this repo
-3. Keep defaults (Vite is auto-detected)
-4. Deploy
+3. Add env vars `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+4. Keep defaults (Vite is auto-detected)
+5. Deploy
 
 Vercel build settings (default):
 - Build command: `npm run build`
 - Output directory: `dist`
+
+## Database Setup (Supabase)
+
+Use the SQL in `supabase/schema.sql` to create the first two tables:
+- `rehearsals`
+- `performances`
+
+Current app capabilities:
+- Create rehearsal and performance entries
+- Read and list both types of entries
+- Update status from the dashboard
+- Store optional Google Drive link per item
+
+Security note:
+- The starter SQL uses open RLS policies for fast setup. Restrict these policies once you add authentication.
