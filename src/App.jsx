@@ -51,6 +51,7 @@ function formatTime(value) {
 export default function App() {
   const [activePage, setActivePage] = useState("rehearsals");
   const [rehearsals, setRehearsals] = useState([]);
+  const [performances, setPerformances] = useState([]);
   const [members, setMembers] = useState([]);
   const [memberSongs, setMemberSongs] = useState([]);
   const [rehearsalSongs, setRehearsalSongs] = useState([]);
@@ -82,6 +83,46 @@ export default function App() {
     }, {});
   }, [rehearsalSongs]);
 
+  const upcomingEvents = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const rehearsalEvents = rehearsals
+      .filter((item) => item.rehearsal_date)
+      .map((item) => ({
+        id: item.id,
+        type: "rehearsal",
+        title: item.title,
+        date: item.rehearsal_date,
+        time: item.rehearsal_start_time,
+        location: item.location,
+        status: item.status
+      }));
+
+    const performanceEvents = performances
+      .filter((item) => item.performance_date)
+      .map((item) => ({
+        id: item.id,
+        type: "performance",
+        title: item.title,
+        date: item.performance_date,
+        location: item.venue,
+        status: item.status
+      }));
+
+    return [...rehearsalEvents, ...performanceEvents]
+      .filter((item) => {
+        const date = new Date(`${item.date}T00:00:00`);
+        return date >= today;
+      })
+      .sort((a, b) => {
+        if (a.date === b.date) {
+          return a.title.localeCompare(b.title);
+        }
+        return a.date.localeCompare(b.date);
+      });
+  }, [rehearsals, performances]);
+
   const selectedMember = useMemo(
     () => members.find((member) => member.id === selectedMemberId) || null,
     [members, selectedMemberId]
@@ -95,11 +136,15 @@ export default function App() {
     setLoading(true);
     setErrorMessage("");
 
-    const [rehearsalsResponse, membersResponse, memberSongsResponse, rehearsalSongsResponse] = await Promise.all([
+    const [rehearsalsResponse, performancesResponse, membersResponse, memberSongsResponse, rehearsalSongsResponse] = await Promise.all([
       supabase
         .from("rehearsals")
         .select("id, title, rehearsal_date, rehearsal_start_time, location, status, drive_url")
         .order("rehearsal_date", { ascending: true, nullsFirst: false }),
+      supabase
+        .from("performances")
+        .select("id, title, performance_date, venue, status, drive_url")
+        .order("performance_date", { ascending: true, nullsFirst: false }),
       supabase
         .from("band_members")
         .select("id, name, created_at")
@@ -114,9 +159,16 @@ export default function App() {
         .order("created_at", { ascending: true })
     ]);
 
-    if (rehearsalsResponse.error || membersResponse.error || memberSongsResponse.error || rehearsalSongsResponse.error) {
+    if (
+      rehearsalsResponse.error ||
+      performancesResponse.error ||
+      membersResponse.error ||
+      memberSongsResponse.error ||
+      rehearsalSongsResponse.error
+    ) {
       setErrorMessage(
         rehearsalsResponse.error?.message ||
+          performancesResponse.error?.message ||
           membersResponse.error?.message ||
           memberSongsResponse.error?.message ||
           rehearsalSongsResponse.error?.message ||
@@ -127,6 +179,7 @@ export default function App() {
     }
 
     setRehearsals(rehearsalsResponse.data || []);
+  setPerformances(performancesResponse.data || []);
     setMembers(membersResponse.data || []);
     setMemberSongs(memberSongsResponse.data || []);
     setRehearsalSongs(rehearsalSongsResponse.data || []);
@@ -372,6 +425,13 @@ export default function App() {
             onClick={() => setActivePage("members")}
           >
             Members
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${activePage === "calendar" ? "active" : ""}`}
+            onClick={() => setActivePage("calendar")}
+          >
+            Calendar
           </button>
 
           {activePage === "members" && (
@@ -737,6 +797,37 @@ export default function App() {
               ) : (
                 <p className="empty">No member selected.</p>
               )}
+            </>
+          )}
+
+          {activePage === "calendar" && (
+            <>
+              <div className="panel-title-row">
+                <h2>Calendar</h2>
+                <span className="tiny-label">{upcomingEvents.length} upcoming</span>
+              </div>
+
+              <div className="file-list">
+                {upcomingEvents.map((item) => (
+                  <article className="file-row" key={`${item.type}-${item.id}`}>
+                    <div className="file-main">
+                      <p className="item-title">{item.title}</p>
+                      <p className="item-date">
+                        {formatDate(item.date)}
+                        {item.type === "rehearsal" && item.time
+                          ? ` · ${formatTime(item.time)}`
+                          : ""}
+                        {item.location ? ` · ${item.location}` : ""}
+                      </p>
+                    </div>
+                    <div className="file-actions">
+                      <span className="tiny-label">{item.type}</span>
+                      <span className="tag">{item.status}</span>
+                    </div>
+                  </article>
+                ))}
+                {!upcomingEvents.length && <p className="empty">No upcoming dates yet.</p>}
+              </div>
             </>
           )}
         </section>
