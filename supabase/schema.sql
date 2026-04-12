@@ -34,9 +34,14 @@ create table if not exists public.member_song_lists (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references public.band_members(id) on delete cascade,
   folder text not null check (folder in ('covers', 'originals', 'songs_im_learning')),
+  song_artist text,
   song_title text not null,
+  song_url text,
   created_at timestamptz not null default now()
 );
+
+alter table public.member_song_lists add column if not exists song_artist text;
+alter table public.member_song_lists add column if not exists song_url text;
 
 create table if not exists public.rehearsal_song_requests (
   id uuid primary key default gen_random_uuid(),
@@ -60,9 +65,12 @@ create table if not exists public.request_approvals (
 create table if not exists public.rehearsal_songs (
   id uuid primary key default gen_random_uuid(),
   rehearsal_id uuid not null references public.rehearsals(id) on delete cascade,
+  song_artist text,
   song_title text not null,
   created_at timestamptz not null default now()
 );
+
+alter table public.rehearsal_songs add column if not exists song_artist text;
 
 alter table public.rehearsals enable row level security;
 alter table public.performances enable row level security;

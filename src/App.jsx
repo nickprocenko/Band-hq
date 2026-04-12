@@ -13,6 +13,14 @@ const initialRehearsalForm = {
   drive_url: ""
 };
 
+function createSongDraft(song = {}) {
+  return {
+    song_artist: song.song_artist || "",
+    song_title: song.song_title || "",
+    song_url: song.song_url || ""
+  };
+}
+
 function formatDate(value) {
   if (!value) {
     return "Date not set";
@@ -98,11 +106,11 @@ export default function App() {
         .order("name", { ascending: true }),
       supabase
         .from("member_song_lists")
-        .select("id, member_id, folder, song_title, created_at")
+        .select("id, member_id, folder, song_artist, song_title, song_url, created_at")
         .order("created_at", { ascending: true }),
       supabase
         .from("rehearsal_songs")
-        .select("id, rehearsal_id, song_title, created_at")
+        .select("id, rehearsal_id, song_artist, song_title, created_at")
         .order("created_at", { ascending: true })
     ]);
 
@@ -215,7 +223,10 @@ export default function App() {
 
   async function addSongToFolder(memberId, folder) {
     const key = `${memberId}:${folder}`;
-    const songTitle = songInputByFolder[key]?.trim();
+    const draft = songInputByFolder[key] || createSongDraft();
+    const songArtist = draft.song_artist?.trim();
+    const songTitle = draft.song_title?.trim();
+    const songUrl = draft.song_url?.trim();
     if (!canSubmit || !songTitle) {
       return;
     }
@@ -224,7 +235,9 @@ export default function App() {
       {
         member_id: memberId,
         folder,
-        song_title: songTitle
+        song_artist: songArtist || null,
+        song_title: songTitle,
+        song_url: songUrl || null
       }
     ]);
 
@@ -233,19 +246,22 @@ export default function App() {
       return;
     }
 
-    setSongInputByFolder((prev) => ({ ...prev, [key]: "" }));
+    setSongInputByFolder((prev) => ({ ...prev, [key]: createSongDraft() }));
     await loadData();
   }
 
   async function saveSongEdit(songId) {
-    const value = songDraftById[songId]?.trim();
-    if (!value) {
+    const draft = songDraftById[songId] || createSongDraft();
+    const songArtist = draft.song_artist?.trim();
+    const songTitle = draft.song_title?.trim();
+    const songUrl = draft.song_url?.trim();
+    if (!songTitle) {
       return;
     }
 
     const { error } = await supabase
       .from("member_song_lists")
-      .update({ song_title: value })
+      .update({ song_artist: songArtist || null, song_title: songTitle, song_url: songUrl || null })
       .eq("id", songId);
 
     if (error) {
@@ -286,11 +302,13 @@ export default function App() {
   }
 
   async function addRehearsalSong(rehearsalId) {
-    const title = rehearsalSongInput[rehearsalId]?.trim();
+    const entry = rehearsalSongInput[rehearsalId] || {};
+    const title = (entry.song_title || "").trim();
+    const artist = (entry.song_artist || "").trim();
     if (!canSubmit || !title) return;
 
     const { error } = await supabase.from("rehearsal_songs").insert([
-      { rehearsal_id: rehearsalId, song_title: title }
+      { rehearsal_id: rehearsalId, song_artist: artist || null, song_title: title }
     ]);
 
     if (error) {
@@ -298,7 +316,7 @@ export default function App() {
       return;
     }
 
-    setRehearsalSongInput((prev) => ({ ...prev, [rehearsalId]: "" }));
+    setRehearsalSongInput((prev) => ({ ...prev, [rehearsalId]: {} }));
     await loadData();
   }
 
@@ -472,7 +490,9 @@ export default function App() {
                           <div className="song-grid">
                             {(songsByRehearsal[item.id] || []).map((song) => (
                               <div className="song-row compact-song-row" key={song.id}>
-                                <span className="song-label">{song.song_title}</span>
+                                <span className="song-label">
+                                  {song.song_artist ? `${song.song_artist} – ${song.song_title}` : song.song_title}
+                                </span>
                                 <button
                                   type="button"
                                   className="ghost"
@@ -484,22 +504,34 @@ export default function App() {
                             ))}
                           </div>
                           <div className="song-row compact-song-row add-row">
-                            <input
-                              value={rehearsalSongInput[item.id] || ""}
-                              onChange={(event) =>
-                                setRehearsalSongInput((prev) => ({
-                                  ...prev,
-                                  [item.id]: event.target.value
-                                }))
-                              }
-                              placeholder="Add song to set"
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  addRehearsalSong(item.id);
+                            <div className="song-fields">
+                              <input
+                                value={(rehearsalSongInput[item.id] || {}).song_artist || ""}
+                                onChange={(event) =>
+                                  setRehearsalSongInput((prev) => ({
+                                    ...prev,
+                                    [item.id]: { ...(prev[item.id] || {}), song_artist: event.target.value }
+                                  }))
                                 }
-                              }}
-                            />
+                                placeholder="Artist"
+                              />
+                              <input
+                                value={(rehearsalSongInput[item.id] || {}).song_title || ""}
+                                onChange={(event) =>
+                                  setRehearsalSongInput((prev) => ({
+                                    ...prev,
+                                    [item.id]: { ...(prev[item.id] || {}), song_title: event.target.value }
+                                  }))
+                                }
+                                placeholder="Song title"
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    addRehearsalSong(item.id);
+                                  }
+                                }}
+                              />
+                            </div>
                             <button type="button" onClick={() => addRehearsalSong(item.id)}>
                               Add
                             </button>
@@ -586,15 +618,53 @@ export default function App() {
                           <div className="song-grid">
                             {songs.map((song) => (
                               <div className="song-row compact-song-row" key={song.id}>
-                                <input
-                                  value={songDraftById[song.id] ?? song.song_title}
-                                  onChange={(event) =>
-                                    setSongDraftById((prev) => ({
-                                      ...prev,
-                                      [song.id]: event.target.value
-                                    }))
-                                  }
-                                />
+                                <div className="song-fields">
+                                  <input
+                                    value={(songDraftById[song.id] || createSongDraft(song)).song_artist}
+                                    onChange={(event) =>
+                                      setSongDraftById((prev) => ({
+                                        ...prev,
+                                        [song.id]: {
+                                          ...(prev[song.id] || createSongDraft(song)),
+                                          song_artist: event.target.value
+                                        }
+                                      }))
+                                    }
+                                    placeholder="Artist"
+                                  />
+                                  <input
+                                    value={(songDraftById[song.id] || createSongDraft(song)).song_title}
+                                    onChange={(event) =>
+                                      setSongDraftById((prev) => ({
+                                        ...prev,
+                                        [song.id]: {
+                                          ...(prev[song.id] || createSongDraft(song)),
+                                          song_title: event.target.value
+                                        }
+                                      }))
+                                    }
+                                    placeholder="Song title"
+                                  />
+                                  <input
+                                    value={(songDraftById[song.id] || createSongDraft(song)).song_url}
+                                    onChange={(event) =>
+                                      setSongDraftById((prev) => ({
+                                        ...prev,
+                                        [song.id]: {
+                                          ...(prev[song.id] || createSongDraft(song)),
+                                          song_url: event.target.value
+                                        }
+                                      }))
+                                    }
+                                    placeholder="Song URL"
+                                    type="url"
+                                  />
+                                  {song.song_url && (
+                                    <a href={song.song_url} target="_blank" rel="noreferrer">
+                                      Open link
+                                    </a>
+                                  )}
+                                </div>
                                 <button type="button" onClick={() => saveSongEdit(song.id)}>
                                   Save
                                 </button>
@@ -610,16 +680,48 @@ export default function App() {
                           </div>
 
                           <div className="song-row compact-song-row add-row">
-                            <input
-                              value={songInputByFolder[key] || ""}
-                              onChange={(event) =>
-                                setSongInputByFolder((prev) => ({
-                                  ...prev,
-                                  [key]: event.target.value
-                                }))
-                              }
-                              placeholder="Add song"
-                            />
+                            <div className="song-fields">
+                              <input
+                                value={(songInputByFolder[key] || createSongDraft()).song_artist}
+                                onChange={(event) =>
+                                  setSongInputByFolder((prev) => ({
+                                    ...prev,
+                                    [key]: {
+                                      ...(prev[key] || createSongDraft()),
+                                      song_artist: event.target.value
+                                    }
+                                  }))
+                                }
+                                placeholder="Artist"
+                              />
+                              <input
+                                value={(songInputByFolder[key] || createSongDraft()).song_title}
+                                onChange={(event) =>
+                                  setSongInputByFolder((prev) => ({
+                                    ...prev,
+                                    [key]: {
+                                      ...(prev[key] || createSongDraft()),
+                                      song_title: event.target.value
+                                    }
+                                  }))
+                                }
+                                placeholder="Song title"
+                              />
+                              <input
+                                value={(songInputByFolder[key] || createSongDraft()).song_url}
+                                onChange={(event) =>
+                                  setSongInputByFolder((prev) => ({
+                                    ...prev,
+                                    [key]: {
+                                      ...(prev[key] || createSongDraft()),
+                                      song_url: event.target.value
+                                    }
+                                  }))
+                                }
+                                placeholder="Song URL"
+                                type="url"
+                              />
+                            </div>
                             <button
                               type="button"
                               onClick={() => addSongToFolder(selectedMember.id, folder)}
