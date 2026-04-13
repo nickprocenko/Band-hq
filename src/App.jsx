@@ -831,6 +831,12 @@ export default function App() {
       return;
     }
 
+    setSongDraftById((prev) => {
+      const next = { ...prev };
+      delete next[songId];
+      return next;
+    });
+
     await loadData();
   }
 
@@ -1742,55 +1748,95 @@ export default function App() {
                                       {artistSongs.map((song) => (
                                         <div className="song-row compact-song-row" key={song.id}>
                                           <div className="song-fields">
-                                            <input
-                                              value={(songDraftById[song.id] || createSongDraft(song)).song_artist}
-                                              onChange={(event) =>
-                                                setSongDraftById((prev) => ({
-                                                  ...prev,
-                                                  [song.id]: {
-                                                    ...(prev[song.id] || createSongDraft(song)),
-                                                    song_artist: event.target.value
+                                            {songDraftById[song.id] ? (
+                                              <>
+                                                <input
+                                                  value={songDraftById[song.id].song_artist}
+                                                  onChange={(event) =>
+                                                    setSongDraftById((prev) => ({
+                                                      ...prev,
+                                                      [song.id]: {
+                                                        ...prev[song.id],
+                                                        song_artist: event.target.value
+                                                      }
+                                                    }))
                                                   }
-                                                }))
-                                              }
-                                              placeholder="Artist"
-                                            />
-                                            <input
-                                              value={(songDraftById[song.id] || createSongDraft(song)).song_title}
-                                              onChange={(event) =>
-                                                setSongDraftById((prev) => ({
-                                                  ...prev,
-                                                  [song.id]: {
-                                                    ...(prev[song.id] || createSongDraft(song)),
-                                                    song_title: event.target.value
+                                                  placeholder="Artist"
+                                                />
+                                                <input
+                                                  value={songDraftById[song.id].song_title}
+                                                  onChange={(event) =>
+                                                    setSongDraftById((prev) => ({
+                                                      ...prev,
+                                                      [song.id]: {
+                                                        ...prev[song.id],
+                                                        song_title: event.target.value
+                                                      }
+                                                    }))
                                                   }
-                                                }))
-                                              }
-                                              placeholder="Song title"
-                                            />
-                                            <input
-                                              value={(songDraftById[song.id] || createSongDraft(song)).song_url}
-                                              onChange={(event) =>
-                                                setSongDraftById((prev) => ({
-                                                  ...prev,
-                                                  [song.id]: {
-                                                    ...(prev[song.id] || createSongDraft(song)),
-                                                    song_url: event.target.value
+                                                  placeholder="Song title"
+                                                />
+                                                <input
+                                                  value={songDraftById[song.id].song_url}
+                                                  onChange={(event) =>
+                                                    setSongDraftById((prev) => ({
+                                                      ...prev,
+                                                      [song.id]: {
+                                                        ...prev[song.id],
+                                                        song_url: event.target.value
+                                                      }
+                                                    }))
                                                   }
-                                                }))
-                                              }
-                                              placeholder="Song URL"
-                                              type="url"
-                                            />
-                                            {song.song_url && (
-                                              <a href={song.song_url} target="_blank" rel="noreferrer">
-                                                Open link
-                                              </a>
+                                                  placeholder="Song URL"
+                                                  type="url"
+                                                />
+                                              </>
+                                            ) : (
+                                              <>
+                                                <span className="song-label">
+                                                  {song.song_artist ? `${song.song_artist} - ${song.song_title}` : song.song_title}
+                                                </span>
+                                                {song.song_url && (
+                                                  <a href={song.song_url} target="_blank" rel="noreferrer">
+                                                    Open link
+                                                  </a>
+                                                )}
+                                              </>
                                             )}
                                           </div>
-                                          <button type="button" onClick={() => saveSongEdit(song.id)}>
-                                            Save
-                                          </button>
+                                          {songDraftById[song.id] ? (
+                                            <>
+                                              <button type="button" onClick={() => saveSongEdit(song.id)}>
+                                                Save
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="ghost"
+                                                onClick={() =>
+                                                  setSongDraftById((prev) => {
+                                                    const next = { ...prev };
+                                                    delete next[song.id];
+                                                    return next;
+                                                  })
+                                                }
+                                              >
+                                                Cancel
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              onClick={() =>
+                                                setSongDraftById((prev) => ({
+                                                  ...prev,
+                                                  [song.id]: createSongDraft(song)
+                                                }))
+                                              }
+                                            >
+                                              Edit
+                                            </button>
+                                          )}
                                           <button
                                             type="button"
                                             className="ghost"
@@ -1818,57 +1864,99 @@ export default function App() {
                               {songs.map((song) => (
                                 <div className="song-row compact-song-row" key={song.id}>
                                   <div className="song-fields">
-                                    {folder !== "originals" && (
-                                      <input
-                                        value={(songDraftById[song.id] || createSongDraft(song)).song_artist}
-                                        onChange={(event) =>
-                                          setSongDraftById((prev) => ({
-                                            ...prev,
-                                            [song.id]: {
-                                              ...(prev[song.id] || createSongDraft(song)),
-                                              song_artist: event.target.value
+                                    {songDraftById[song.id] ? (
+                                      <>
+                                        {folder !== "originals" && (
+                                          <input
+                                            value={songDraftById[song.id].song_artist}
+                                            onChange={(event) =>
+                                              setSongDraftById((prev) => ({
+                                                ...prev,
+                                                [song.id]: {
+                                                  ...prev[song.id],
+                                                  song_artist: event.target.value
+                                                }
+                                              }))
                                             }
-                                          }))
-                                        }
-                                        placeholder="Artist"
-                                      />
-                                    )}
-                                    <input
-                                      value={(songDraftById[song.id] || createSongDraft(song)).song_title}
-                                      onChange={(event) =>
-                                        setSongDraftById((prev) => ({
-                                          ...prev,
-                                          [song.id]: {
-                                            ...(prev[song.id] || createSongDraft(song)),
-                                            song_title: event.target.value
+                                            placeholder="Artist"
+                                          />
+                                        )}
+                                        <input
+                                          value={songDraftById[song.id].song_title}
+                                          onChange={(event) =>
+                                            setSongDraftById((prev) => ({
+                                              ...prev,
+                                              [song.id]: {
+                                                ...prev[song.id],
+                                                song_title: event.target.value
+                                              }
+                                            }))
                                           }
-                                        }))
-                                      }
-                                      placeholder="Song title"
-                                    />
-                                    <input
-                                      value={(songDraftById[song.id] || createSongDraft(song)).song_url}
-                                      onChange={(event) =>
-                                        setSongDraftById((prev) => ({
-                                          ...prev,
-                                          [song.id]: {
-                                            ...(prev[song.id] || createSongDraft(song)),
-                                            song_url: event.target.value
+                                          placeholder="Song title"
+                                        />
+                                        <input
+                                          value={songDraftById[song.id].song_url}
+                                          onChange={(event) =>
+                                            setSongDraftById((prev) => ({
+                                              ...prev,
+                                              [song.id]: {
+                                                ...prev[song.id],
+                                                song_url: event.target.value
+                                              }
+                                            }))
                                           }
-                                        }))
-                                      }
-                                      placeholder="Song URL"
-                                      type="url"
-                                    />
-                                    {song.song_url && (
-                                      <a href={song.song_url} target="_blank" rel="noreferrer">
-                                        Open link
-                                      </a>
+                                          placeholder="Song URL"
+                                          type="url"
+                                        />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="song-label">
+                                          {folder === "originals" || !song.song_artist
+                                            ? song.song_title
+                                            : `${song.song_artist} - ${song.song_title}`}
+                                        </span>
+                                        {song.song_url && (
+                                          <a href={song.song_url} target="_blank" rel="noreferrer">
+                                            Open link
+                                          </a>
+                                        )}
+                                      </>
                                     )}
                                   </div>
-                                  <button type="button" onClick={() => saveSongEdit(song.id)}>
-                                    Save
-                                  </button>
+                                  {songDraftById[song.id] ? (
+                                    <>
+                                      <button type="button" onClick={() => saveSongEdit(song.id)}>
+                                        Save
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        onClick={() =>
+                                          setSongDraftById((prev) => {
+                                            const next = { ...prev };
+                                            delete next[song.id];
+                                            return next;
+                                          })
+                                        }
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() =>
+                                        setSongDraftById((prev) => ({
+                                          ...prev,
+                                          [song.id]: createSongDraft(song)
+                                        }))
+                                      }
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     className="ghost"
