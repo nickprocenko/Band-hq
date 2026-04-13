@@ -759,7 +759,9 @@ export default function App() {
               ))}
             </div>
           )}
+        </aside>
 
+        <section className="content panel">
           {activePage === "performances" && (
             <>
               <div className="panel-title-row">
@@ -820,50 +822,56 @@ export default function App() {
                 </button>
               </form>
 
-              <div className="file-list">
-                {performances.map((item) => (
-                  <article className="file-row" key={item.id}>
-                    <div className="file-main">
-                      <p className="item-title">{item.title}</p>
-                      <p className="item-date">
-                        {formatDate(item.performance_date)}
-                        {item.venue ? ` · ${item.venue}` : ""}
-                      </p>
-                      {item.drive_url && (
-                        <a href={item.drive_url} target="_blank" rel="noreferrer">
-                          Open Drive media
-                        </a>
-                      )}
-                    </div>
-                    <div className="file-actions">
-                      <select
-                        className="tag-select"
-                        value={item.status}
-                        onChange={(event) => updatePerformanceStatus(item.id, event.target.value)}
-                      >
-                        {PERFORMANCE_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="ghost danger"
-                        onClick={() => deletePerformance(item.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                ))}
-                {!performances.length && <p className="empty">No performances yet.</p>}
-              </div>
+              <details className="folder folder-collapsible event-list-section" open>
+                <summary className="folder-summary">
+                  <span>Performance list</span>
+                  <span className="tiny-label">{performances.length} items</span>
+                </summary>
+                <div className="folder-body">
+                  <div className="file-list">
+                    {performances.map((item) => (
+                      <article className="file-row" key={item.id}>
+                        <div className="file-main">
+                          <p className="item-title">{item.title}</p>
+                          <p className="item-date">
+                            {formatDate(item.performance_date)}
+                            {item.venue ? ` · ${item.venue}` : ""}
+                          </p>
+                          {item.drive_url && (
+                            <a href={item.drive_url} target="_blank" rel="noreferrer">
+                              Open Drive media
+                            </a>
+                          )}
+                        </div>
+                        <div className="file-actions">
+                          <select
+                            className="tag-select"
+                            value={item.status}
+                            onChange={(event) => updatePerformanceStatus(item.id, event.target.value)}
+                          >
+                            {PERFORMANCE_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="ghost danger"
+                            onClick={() => deletePerformance(item.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                    {!performances.length && <p className="empty">No performances yet.</p>}
+                  </div>
+                </div>
+              </details>
             </>
           )}
-        </aside>
 
-        <section className="content panel">
           {activePage === "rehearsals" && (
             <>
               <div className="panel-title-row">
@@ -936,105 +944,113 @@ export default function App() {
                 </button>
               </form>
 
-              <div className="file-list">
-                {rehearsals.map((item) => (
-                  <article className="file-row" key={item.id}>
-                    <div className="file-main">
-                      <p className="item-title">{item.title}</p>
-                      <p className="item-date">
-                        {formatDate(item.rehearsal_date)} · {formatTime(item.rehearsal_start_time)}
-                        {item.location ? ` · ${item.location}` : ""}
-                      </p>
-                      {item.drive_url && (
-                        <a href={item.drive_url} target="_blank" rel="noreferrer">
-                          Open Drive media
-                        </a>
-                      )}
+              <details className="folder folder-collapsible event-list-section" open>
+                <summary className="folder-summary">
+                  <span>Rehearsal list</span>
+                  <span className="tiny-label">{rehearsals.length} items</span>
+                </summary>
+                <div className="folder-body">
+                  <div className="file-list">
+                    {rehearsals.map((item) => (
+                      <article className="file-row" key={item.id}>
+                        <div className="file-main">
+                          <p className="item-title">{item.title}</p>
+                          <p className="item-date">
+                            {formatDate(item.rehearsal_date)} · {formatTime(item.rehearsal_start_time)}
+                            {item.location ? ` · ${item.location}` : ""}
+                          </p>
+                          {item.drive_url && (
+                            <a href={item.drive_url} target="_blank" rel="noreferrer">
+                              Open Drive media
+                            </a>
+                          )}
 
-                      <details className="folder folder-collapsible set-list" key={item.id}>
-                        <summary className="folder-summary">
-                          <span>Set list</span>
-                          <span className="tiny-label">
-                            {(songsByRehearsal[item.id] || []).length} songs
-                          </span>
-                        </summary>
-                        <div className="folder-body">
-                          <div className="song-grid">
-                            {(songsByRehearsal[item.id] || []).map((song) => (
-                              <div className="song-row compact-song-row" key={song.id}>
-                                <span className="song-label">
-                                  {song.song_artist ? `${song.song_artist} – ${song.song_title}` : song.song_title}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  onClick={() => removeRehearsalSong(song.id)}
-                                >
-                                  Remove
+                          <details className="folder folder-collapsible set-list" key={item.id}>
+                            <summary className="folder-summary">
+                              <span>Set list</span>
+                              <span className="tiny-label">
+                                {(songsByRehearsal[item.id] || []).length} songs
+                              </span>
+                            </summary>
+                            <div className="folder-body">
+                              <div className="song-grid">
+                                {(songsByRehearsal[item.id] || []).map((song) => (
+                                  <div className="song-row compact-song-row" key={song.id}>
+                                    <span className="song-label">
+                                      {song.song_artist ? `${song.song_artist} – ${song.song_title}` : song.song_title}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() => removeRehearsalSong(song.id)}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="song-row compact-song-row add-row">
+                                <div className="song-fields">
+                                  <input
+                                    value={(rehearsalSongInput[item.id] || {}).song_artist || ""}
+                                    onChange={(event) =>
+                                      setRehearsalSongInput((prev) => ({
+                                        ...prev,
+                                        [item.id]: { ...(prev[item.id] || {}), song_artist: event.target.value }
+                                      }))
+                                    }
+                                    placeholder="Artist"
+                                  />
+                                  <input
+                                    value={(rehearsalSongInput[item.id] || {}).song_title || ""}
+                                    onChange={(event) =>
+                                      setRehearsalSongInput((prev) => ({
+                                        ...prev,
+                                        [item.id]: { ...(prev[item.id] || {}), song_title: event.target.value }
+                                      }))
+                                    }
+                                    placeholder="Song title"
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        addRehearsalSong(item.id);
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <button type="button" onClick={() => addRehearsalSong(item.id)}>
+                                  Add
                                 </button>
                               </div>
-                            ))}
-                          </div>
-                          <div className="song-row compact-song-row add-row">
-                            <div className="song-fields">
-                              <input
-                                value={(rehearsalSongInput[item.id] || {}).song_artist || ""}
-                                onChange={(event) =>
-                                  setRehearsalSongInput((prev) => ({
-                                    ...prev,
-                                    [item.id]: { ...(prev[item.id] || {}), song_artist: event.target.value }
-                                  }))
-                                }
-                                placeholder="Artist"
-                              />
-                              <input
-                                value={(rehearsalSongInput[item.id] || {}).song_title || ""}
-                                onChange={(event) =>
-                                  setRehearsalSongInput((prev) => ({
-                                    ...prev,
-                                    [item.id]: { ...(prev[item.id] || {}), song_title: event.target.value }
-                                  }))
-                                }
-                                placeholder="Song title"
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    event.preventDefault();
-                                    addRehearsalSong(item.id);
-                                  }
-                                }}
-                              />
                             </div>
-                            <button type="button" onClick={() => addRehearsalSong(item.id)}>
-                              Add
-                            </button>
-                          </div>
+                          </details>
                         </div>
-                      </details>
-                    </div>
-                    <div className="file-actions">
-                      <select
-                        className="tag-select"
-                        value={item.status}
-                        onChange={(event) => updateRehearsalStatus(item.id, event.target.value)}
-                      >
-                        {REHEARSAL_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="ghost danger"
-                        onClick={() => deleteRehearsal(item.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                ))}
-                {!rehearsals.length && <p className="empty">No rehearsals yet.</p>}
-              </div>
+                        <div className="file-actions">
+                          <select
+                            className="tag-select"
+                            value={item.status}
+                            onChange={(event) => updateRehearsalStatus(item.id, event.target.value)}
+                          >
+                            {REHEARSAL_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="ghost danger"
+                            onClick={() => deleteRehearsal(item.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                    {!rehearsals.length && <p className="empty">No rehearsals yet.</p>}
+                  </div>
+                </div>
+              </details>
             </>
           )}
 
@@ -1080,7 +1096,7 @@ export default function App() {
                     const songs = songsByMemberAndFolder[key] || [];
 
                     return (
-                      <details className="folder folder-collapsible" key={key} open>
+                      <details className="folder folder-collapsible" key={key}>
                         <summary className="folder-summary">
                           <span>{folder.replaceAll("_", " ")}</span>
                           <span className="tiny-label">{songs.length} songs</span>
@@ -1489,47 +1505,55 @@ export default function App() {
                 </button>
               </form>
 
-              <div className="file-list">
-                {otherEvents.map((item) => (
-                  <article className="file-row" key={item.id}>
-                    <div className="file-main">
-                      <p className="item-title">{item.title}</p>
-                      <p className="item-date">
-                        {formatDate(item.event_date)}
-                        {item.event_time ? ` · ${formatTime(item.event_time)}` : ""}
-                        {item.location ? ` · ${item.location}` : ""}
-                      </p>
-                      <p className="item-date">{item.event_type}</p>
-                      {item.drive_url && (
-                        <a href={item.drive_url} target="_blank" rel="noreferrer">
-                          Open Drive media
-                        </a>
-                      )}
-                    </div>
-                    <div className="file-actions">
-                      <select
-                        className="tag-select"
-                        value={item.status}
-                        onChange={(event) => updateOtherEventStatus(item.id, event.target.value)}
-                      >
-                        {OTHER_EVENT_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="ghost danger"
-                        onClick={() => deleteOtherEvent(item.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                ))}
-                {!otherEvents.length && <p className="empty">No events yet.</p>}
-              </div>
+              <details className="folder folder-collapsible event-list-section" open>
+                <summary className="folder-summary">
+                  <span>Other event list</span>
+                  <span className="tiny-label">{otherEvents.length} items</span>
+                </summary>
+                <div className="folder-body">
+                  <div className="file-list">
+                    {otherEvents.map((item) => (
+                      <article className="file-row" key={item.id}>
+                        <div className="file-main">
+                          <p className="item-title">{item.title}</p>
+                          <p className="item-date">
+                            {formatDate(item.event_date)}
+                            {item.event_time ? ` · ${formatTime(item.event_time)}` : ""}
+                            {item.location ? ` · ${item.location}` : ""}
+                          </p>
+                          <p className="item-date">{item.event_type}</p>
+                          {item.drive_url && (
+                            <a href={item.drive_url} target="_blank" rel="noreferrer">
+                              Open Drive media
+                            </a>
+                          )}
+                        </div>
+                        <div className="file-actions">
+                          <select
+                            className="tag-select"
+                            value={item.status}
+                            onChange={(event) => updateOtherEventStatus(item.id, event.target.value)}
+                          >
+                            {OTHER_EVENT_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="ghost danger"
+                            onClick={() => deleteOtherEvent(item.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                    {!otherEvents.length && <p className="empty">No events yet.</p>}
+                  </div>
+                </div>
+              </details>
             </>
           )}
         </section>
