@@ -24,6 +24,18 @@ create table if not exists public.performances (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.other_events (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  event_date date,
+  event_time time,
+  location text,
+  event_type text not null default 'meeting' check (event_type in ('meeting', 'recording', 'shoot', 'travel', 'other')),
+  status text not null default 'planned' check (status in ('planned', 'confirmed', 'completed', 'cancelled')),
+  drive_url text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.band_members (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -74,6 +86,7 @@ alter table public.rehearsal_songs add column if not exists song_artist text;
 
 alter table public.rehearsals enable row level security;
 alter table public.performances enable row level security;
+alter table public.other_events enable row level security;
 alter table public.band_members enable row level security;
 alter table public.member_song_lists enable row level security;
 alter table public.rehearsal_songs enable row level security;
@@ -84,6 +97,8 @@ drop policy if exists "enable_read_rehearsals" on public.rehearsals;
 drop policy if exists "enable_write_rehearsals" on public.rehearsals;
 drop policy if exists "enable_read_performances" on public.performances;
 drop policy if exists "enable_write_performances" on public.performances;
+drop policy if exists "enable_read_other_events" on public.other_events;
+drop policy if exists "enable_write_other_events" on public.other_events;
 drop policy if exists "enable_read_band_members" on public.band_members;
 drop policy if exists "enable_write_band_members" on public.band_members;
 drop policy if exists "enable_read_member_song_lists" on public.member_song_lists;
@@ -113,6 +128,17 @@ create policy "enable_read_performances"
 
 create policy "enable_write_performances"
   on public.performances
+  for all
+  using (true)
+  with check (true);
+
+create policy "enable_read_other_events"
+  on public.other_events
+  for select
+  using (true);
+
+create policy "enable_write_other_events"
+  on public.other_events
   for all
   using (true)
   with check (true);

@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 
 const REHEARSAL_STATUSES = ["planned", "draft", "confirmed", "completed"];
+const PERFORMANCE_STATUSES = ["planned", "pending", "confirmed", "completed"];
+const OTHER_EVENT_STATUSES = ["planned", "confirmed", "completed", "cancelled"];
+const OTHER_EVENT_TYPES = ["meeting", "recording", "shoot", "travel", "other"];
 const MEMBER_FOLDERS = ["covers", "originals", "songs_im_learning"];
 
 const initialRehearsalForm = {
@@ -9,6 +12,24 @@ const initialRehearsalForm = {
   rehearsal_date: "",
   rehearsal_start_time: "",
   location: "",
+  status: "planned",
+  drive_url: ""
+};
+
+const initialPerformanceForm = {
+  title: "",
+  performance_date: "",
+  venue: "",
+  status: "planned",
+  drive_url: ""
+};
+
+const initialOtherEventForm = {
+  title: "",
+  event_date: "",
+  event_time: "",
+  location: "",
+  event_type: "meeting",
   status: "planned",
   drive_url: ""
 };
@@ -48,10 +69,32 @@ function formatTime(value) {
   }).format(date);
 }
 
+function formatMonthLabel(value) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric"
+  }).format(value);
+}
+
+function formatShortDateLabel(value) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric"
+  }).format(value);
+}
+
+function toIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function App() {
   const [activePage, setActivePage] = useState("rehearsals");
   const [rehearsals, setRehearsals] = useState([]);
   const [performances, setPerformances] = useState([]);
+  const [otherEvents, setOtherEvents] = useState([]);
   const [members, setMembers] = useState([]);
   const [memberSongs, setMemberSongs] = useState([]);
   const [rehearsalSongs, setRehearsalSongs] = useState([]);
@@ -61,6 +104,24 @@ export default function App() {
   const [songDraftById, setSongDraftById] = useState({});
   const [rehearsalSongInput, setRehearsalSongInput] = useState({});
   const [rehearsalForm, setRehearsalForm] = useState(initialRehearsalForm);
+  const [performanceForm, setPerformanceForm] = useState(initialPerformanceForm);
+  const [otherEventForm, setOtherEventForm] = useState(initialOtherEventForm);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [calendarWeekStart, setCalendarWeekStart] = useState(() => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    start.setDate(start.getDate() - start.getDay());
+    return start;
+  });
+  const [calendarView, setCalendarView] = useState("month");
+  const [calendarFilters, setCalendarFilters] = useState({
+    rehearsal: true,
+    performance: true,
+    other: true
+  });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -83,15 +144,13 @@ export default function App() {
     }, {});
   }, [rehearsalSongs]);
 
-  const upcomingEvents = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+  const calendarEvents = useMemo(() => {
     const rehearsalEvents = rehearsals
       .filter((item) => item.rehearsal_date)
       .map((item) => ({
         id: item.id,
-        type: "rehearsal",
+        sourceType: "rehearsal",
+        type: "Rehearsal",
         title: item.title,
         date: item.rehearsal_date,
         time: item.rehearsal_start_time,
@@ -103,30 +162,122 @@ export default function App() {
       .filter((item) => item.performance_date)
       .map((item) => ({
         id: item.id,
-        type: "performance",
+        sourceType: "performance",
+        type: "Performance",
         title: item.title,
         date: item.performance_date,
         location: item.venue,
         status: item.status
       }));
 
-    return [...rehearsalEvents, ...performanceEvents]
-      .filter((item) => {
-        const date = new Date(`${item.date}T00:00:00`);
-        return date >= today;
-      })
+    const miscEvents = otherEvents
+      .filter((item) => item.event_date)
+      .map((item) => ({
+        id: item.id,
+        sourceType: "other",
+        type: item.event_type || "other",
+        title: item.title,
+        date: item.event_date,
+        time: item.event_time,
+        location: item.location,
+        status: item.status
+      }));
+
+    return [...rehearsalEvents, ...performanceEvents, ...miscEvents]
       .sort((a, b) => {
         if (a.date === b.date) {
+          if ((a.time || "") !== (b.time || "")) {
+            return (a.time || "").localeCompare(b.time || "");
+          }
           return a.title.localeCompare(b.title);
         }
         return a.date.localeCompare(b.date);
       });
-  }, [rehearsals, performances]);
+  }, [rehearsals, performances, otherEvents]);
+
+  const filteredCalendarEvents = useMemo(() => {
+    return calendarEvents.filter((item) => calendarFilters[item.sourceType]);
+  }, [calendarEvents, calendarFilters]);
+
+  const calendarEventsByDate = useMemo(() => {
+    return filteredCalendarEvents.reduce((acc, event) => {
+      if (!acc[event.date]) {
+        acc[event.date] = [];
+      }
+      acc[event.date].push(event);
+      return acc;
+    }, {});
+  }, [filteredCalendarEvents]);
+
+  const calendarDays = useMemo(() => {
+    const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const gridStart = new Date(monthStart);
+    gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+    const todayIso = toIsoDate(new Date());
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const current = new Date(gridStart);
+      current.setDate(gridStart.getDate() + index);
+      const iso = toIsoDate(current);
+      return {
+        iso,
+        label: current.getDate(),
+        isCurrentMonth: current.getMonth() === calendarMonth.getMonth(),
+        isToday: iso === todayIso,
+        events: calendarEventsByDate[iso] || []
+      };
+    });
+  }, [calendarMonth, calendarEventsByDate]);
+
+  const calendarWeekDays = useMemo(() => {
+    const todayIso = toIsoDate(new Date());
+    return Array.from({ length: 7 }, (_, index) => {
+      const current = new Date(calendarWeekStart);
+      current.setDate(calendarWeekStart.getDate() + index);
+      const iso = toIsoDate(current);
+      return {
+        iso,
+        label: current.getDate(),
+        weekday: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(current),
+        isToday: iso === todayIso,
+        events: calendarEventsByDate[iso] || []
+      };
+    });
+  }, [calendarWeekStart, calendarEventsByDate]);
+
+  const monthLabel = useMemo(() => formatMonthLabel(calendarMonth), [calendarMonth]);
+
+  const monthEventCount = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    return filteredCalendarEvents.filter((event) => {
+      const eventDate = new Date(`${event.date}T00:00:00`);
+      return eventDate.getFullYear() === year && eventDate.getMonth() === month;
+    }).length;
+  }, [calendarMonth, filteredCalendarEvents]);
+
+  const weekLabel = useMemo(() => {
+    const start = new Date(calendarWeekStart);
+    const end = new Date(calendarWeekStart);
+    end.setDate(end.getDate() + 6);
+    return `${formatShortDateLabel(start)} - ${formatShortDateLabel(end)}`;
+  }, [calendarWeekStart]);
+
+  const weekEventCount = useMemo(() => {
+    const start = new Date(calendarWeekStart);
+    const end = new Date(calendarWeekStart);
+    end.setDate(end.getDate() + 6);
+    return filteredCalendarEvents.filter((event) => {
+      const eventDate = new Date(`${event.date}T00:00:00`);
+      return eventDate >= start && eventDate <= end;
+    }).length;
+  }, [calendarWeekStart, filteredCalendarEvents]);
 
   const selectedMember = useMemo(
     () => members.find((member) => member.id === selectedMemberId) || null,
     [members, selectedMemberId]
   );
+  const isEventPage = ["rehearsals", "performances", "other-events"].includes(activePage);
 
   async function loadData() {
     if (!isSupabaseConfigured) {
@@ -136,7 +287,14 @@ export default function App() {
     setLoading(true);
     setErrorMessage("");
 
-    const [rehearsalsResponse, performancesResponse, membersResponse, memberSongsResponse, rehearsalSongsResponse] = await Promise.all([
+    const [
+      rehearsalsResponse,
+      performancesResponse,
+      otherEventsResponse,
+      membersResponse,
+      memberSongsResponse,
+      rehearsalSongsResponse
+    ] = await Promise.all([
       supabase
         .from("rehearsals")
         .select("id, title, rehearsal_date, rehearsal_start_time, location, status, drive_url")
@@ -145,6 +303,10 @@ export default function App() {
         .from("performances")
         .select("id, title, performance_date, venue, status, drive_url")
         .order("performance_date", { ascending: true, nullsFirst: false }),
+      supabase
+        .from("other_events")
+        .select("id, title, event_date, event_time, location, event_type, status, drive_url")
+        .order("event_date", { ascending: true, nullsFirst: false }),
       supabase
         .from("band_members")
         .select("id, name, created_at")
@@ -162,6 +324,7 @@ export default function App() {
     if (
       rehearsalsResponse.error ||
       performancesResponse.error ||
+      otherEventsResponse.error ||
       membersResponse.error ||
       memberSongsResponse.error ||
       rehearsalSongsResponse.error
@@ -169,6 +332,7 @@ export default function App() {
       setErrorMessage(
         rehearsalsResponse.error?.message ||
           performancesResponse.error?.message ||
+          otherEventsResponse.error?.message ||
           membersResponse.error?.message ||
           memberSongsResponse.error?.message ||
           rehearsalSongsResponse.error?.message ||
@@ -179,7 +343,8 @@ export default function App() {
     }
 
     setRehearsals(rehearsalsResponse.data || []);
-  setPerformances(performancesResponse.data || []);
+    setPerformances(performancesResponse.data || []);
+    setOtherEvents(otherEventsResponse.data || []);
     setMembers(membersResponse.data || []);
     setMemberSongs(memberSongsResponse.data || []);
     setRehearsalSongs(rehearsalSongsResponse.data || []);
@@ -256,6 +421,66 @@ export default function App() {
     await loadData();
   }
 
+  async function createPerformance(event) {
+    event.preventDefault();
+    if (!canSubmit || !performanceForm.title.trim()) {
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+
+    const { error } = await supabase.from("performances").insert([
+      {
+        title: performanceForm.title.trim(),
+        performance_date: performanceForm.performance_date || null,
+        venue: performanceForm.venue.trim() || null,
+        status: performanceForm.status,
+        drive_url: performanceForm.drive_url.trim() || null
+      }
+    ]);
+
+    if (error) {
+      setErrorMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setPerformanceForm(initialPerformanceForm);
+    await loadData();
+  }
+
+  async function createOtherEvent(event) {
+    event.preventDefault();
+    if (!canSubmit || !otherEventForm.title.trim()) {
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+
+    const { error } = await supabase.from("other_events").insert([
+      {
+        title: otherEventForm.title.trim(),
+        event_date: otherEventForm.event_date || null,
+        event_time: otherEventForm.event_time || null,
+        location: otherEventForm.location.trim() || null,
+        event_type: otherEventForm.event_type,
+        status: otherEventForm.status,
+        drive_url: otherEventForm.drive_url.trim() || null
+      }
+    ]);
+
+    if (error) {
+      setErrorMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setOtherEventForm(initialOtherEventForm);
+    await loadData();
+  }
+
   async function deleteRehearsal(rehearsalId) {
     const { error } = await supabase.from("rehearsals").delete().eq("id", rehearsalId);
     if (error) {
@@ -267,6 +492,24 @@ export default function App() {
 
   async function deleteMember(memberId) {
     const { error } = await supabase.from("band_members").delete().eq("id", memberId);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    await loadData();
+  }
+
+  async function deletePerformance(performanceId) {
+    const { error } = await supabase.from("performances").delete().eq("id", performanceId);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    await loadData();
+  }
+
+  async function deleteOtherEvent(eventId) {
+    const { error } = await supabase.from("other_events").delete().eq("id", eventId);
     if (error) {
       setErrorMessage(error.message);
       return;
@@ -354,6 +597,46 @@ export default function App() {
     );
   }
 
+  async function updatePerformanceStatus(id, status) {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("performances")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setPerformances((current) =>
+      current.map((item) => (item.id === id ? { ...item, status } : item))
+    );
+  }
+
+  async function updateOtherEventStatus(id, status) {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("other_events")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setOtherEvents((current) =>
+      current.map((item) => (item.id === id ? { ...item, status } : item))
+    );
+  }
+
   async function addRehearsalSong(rehearsalId) {
     const entry = rehearsalSongInput[rehearsalId] || {};
     const title = (entry.song_title || "").trim();
@@ -388,7 +671,7 @@ export default function App() {
         <p className="eyebrow">Band Operations Console</p>
         <h1>Band HQ</h1>
         <p className="subhead">
-          Compact file-style pages for rehearsals and member folders.
+          Compact file-style pages for rehearsals, performances, members, and other events.
         </p>
       </header>
 
@@ -414,10 +697,10 @@ export default function App() {
           <p className="sidebar-label">Pages</p>
           <button
             type="button"
-            className={`nav-item ${activePage === "rehearsals" ? "active" : ""}`}
+            className={`nav-item ${isEventPage ? "active" : ""}`}
             onClick={() => setActivePage("rehearsals")}
           >
-            Rehearsals
+            Events
           </button>
           <button
             type="button"
@@ -434,6 +717,33 @@ export default function App() {
             Calendar
           </button>
 
+          {isEventPage && (
+            <div className="tree-list">
+              <p className="sidebar-label">Event pages</p>
+              <button
+                type="button"
+                className={`tree-item ${activePage === "performances" ? "active" : ""}`}
+                onClick={() => setActivePage("performances")}
+              >
+                Performances
+              </button>
+              <button
+                type="button"
+                className={`tree-item ${activePage === "rehearsals" ? "active" : ""}`}
+                onClick={() => setActivePage("rehearsals")}
+              >
+                Rehearsals
+              </button>
+              <button
+                type="button"
+                className={`tree-item ${activePage === "other-events" ? "active" : ""}`}
+                onClick={() => setActivePage("other-events")}
+              >
+                Other events
+              </button>
+            </div>
+          )}
+
           {activePage === "members" && (
             <div className="tree-list">
               <p className="sidebar-label">Member folders</p>
@@ -448,6 +758,108 @@ export default function App() {
                 </button>
               ))}
             </div>
+          )}
+
+          {activePage === "performances" && (
+            <>
+              <div className="panel-title-row">
+                <h2>Performances</h2>
+                <span className="tiny-label">{performances.length} items</span>
+              </div>
+
+              <form className="stack form-card" onSubmit={createPerformance}>
+                <input
+                  value={performanceForm.title}
+                  onChange={(event) =>
+                    setPerformanceForm((prev) => ({ ...prev, title: event.target.value }))
+                  }
+                  placeholder="Performance title"
+                  required
+                />
+                <div className="split three">
+                  <input
+                    type="date"
+                    value={performanceForm.performance_date}
+                    onChange={(event) =>
+                      setPerformanceForm((prev) => ({
+                        ...prev,
+                        performance_date: event.target.value
+                      }))
+                    }
+                  />
+                  <input
+                    value={performanceForm.venue}
+                    onChange={(event) =>
+                      setPerformanceForm((prev) => ({ ...prev, venue: event.target.value }))
+                    }
+                    placeholder="Venue"
+                  />
+                  <select
+                    value={performanceForm.status}
+                    onChange={(event) =>
+                      setPerformanceForm((prev) => ({ ...prev, status: event.target.value }))
+                    }
+                  >
+                    {PERFORMANCE_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  value={performanceForm.drive_url}
+                  onChange={(event) =>
+                    setPerformanceForm((prev) => ({ ...prev, drive_url: event.target.value }))
+                  }
+                  placeholder="Google Drive URL"
+                  type="url"
+                />
+                <button type="submit" disabled={!canSubmit}>
+                  + Add performance
+                </button>
+              </form>
+
+              <div className="file-list">
+                {performances.map((item) => (
+                  <article className="file-row" key={item.id}>
+                    <div className="file-main">
+                      <p className="item-title">{item.title}</p>
+                      <p className="item-date">
+                        {formatDate(item.performance_date)}
+                        {item.venue ? ` · ${item.venue}` : ""}
+                      </p>
+                      {item.drive_url && (
+                        <a href={item.drive_url} target="_blank" rel="noreferrer">
+                          Open Drive media
+                        </a>
+                      )}
+                    </div>
+                    <div className="file-actions">
+                      <select
+                        className="tag-select"
+                        value={item.status}
+                        onChange={(event) => updatePerformanceStatus(item.id, event.target.value)}
+                      >
+                        {PERFORMANCE_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="ghost danger"
+                        onClick={() => deletePerformance(item.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {!performances.length && <p className="empty">No performances yet.</p>}
+              </div>
+            </>
           )}
         </aside>
 
@@ -804,29 +1216,319 @@ export default function App() {
             <>
               <div className="panel-title-row">
                 <h2>Calendar</h2>
-                <span className="tiny-label">{upcomingEvents.length} upcoming</span>
+                <span className="tiny-label">
+                  {calendarView === "month" ? `${monthEventCount} this month` : `${weekEventCount} this week`}
+                </span>
               </div>
 
+              <div className="calendar-toolbar">
+                <div className="calendar-nav">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      if (calendarView === "month") {
+                        setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+                        return;
+                      }
+                      setCalendarWeekStart((prev) => {
+                        const next = new Date(prev);
+                        next.setDate(next.getDate() - 7);
+                        return next;
+                      });
+                    }}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      if (calendarView === "month") {
+                        setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+                        return;
+                      }
+                      setCalendarWeekStart((prev) => {
+                        const next = new Date(prev);
+                        next.setDate(next.getDate() + 7);
+                        return next;
+                      });
+                    }}
+                  >
+                    Next
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      const today = new Date();
+                      setCalendarMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+                      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                      start.setDate(start.getDate() - start.getDay());
+                      setCalendarWeekStart(start);
+                    }}
+                  >
+                    Today
+                  </button>
+                </div>
+                <div className="calendar-view-controls" role="group" aria-label="Calendar view mode">
+                  <button
+                    type="button"
+                    className={`ghost ${calendarView === "month" ? "active-toggle" : ""}`}
+                    onClick={() => setCalendarView("month")}
+                  >
+                    Month
+                  </button>
+                  <button
+                    type="button"
+                    className={`ghost ${calendarView === "week" ? "active-toggle" : ""}`}
+                    onClick={() => setCalendarView("week")}
+                  >
+                    Week
+                  </button>
+                </div>
+                <h3 className="calendar-month-label">
+                  {calendarView === "month" ? monthLabel : weekLabel}
+                </h3>
+              </div>
+
+              <div className="calendar-filters" role="group" aria-label="Event type filters">
+                <label className="calendar-filter">
+                  <input
+                    type="checkbox"
+                    checked={calendarFilters.performance}
+                    onChange={() =>
+                      setCalendarFilters((prev) => ({
+                        ...prev,
+                        performance: !prev.performance
+                      }))
+                    }
+                  />
+                  Performances
+                </label>
+                <label className="calendar-filter">
+                  <input
+                    type="checkbox"
+                    checked={calendarFilters.rehearsal}
+                    onChange={() =>
+                      setCalendarFilters((prev) => ({
+                        ...prev,
+                        rehearsal: !prev.rehearsal
+                      }))
+                    }
+                  />
+                  Rehearsals
+                </label>
+                <label className="calendar-filter">
+                  <input
+                    type="checkbox"
+                    checked={calendarFilters.other}
+                    onChange={() =>
+                      setCalendarFilters((prev) => ({
+                        ...prev,
+                        other: !prev.other
+                      }))
+                    }
+                  />
+                  Other events
+                </label>
+              </div>
+
+              {calendarView === "month" && (
+                <div className="calendar-grid-wrap">
+                  <div className="calendar-weekdays">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                      <p key={day} className="calendar-weekday">
+                        {day}
+                      </p>
+                    ))}
+                  </div>
+
+                  <div className="calendar-grid">
+                    {calendarDays.map((day) => (
+                      <article
+                        key={day.iso}
+                        className={`calendar-day ${day.isCurrentMonth ? "" : "outside"} ${day.isToday ? "today" : ""}`}
+                      >
+                        <p className="calendar-day-number">{day.label}</p>
+                        <div className="calendar-day-events">
+                          {day.events.slice(0, 4).map((item) => (
+                            <div
+                              className={`calendar-event event-${item.sourceType}`}
+                              key={`${item.sourceType}-${item.id}-${day.iso}`}
+                              title={`${item.title}${item.time ? ` · ${formatTime(item.time)}` : ""}${item.location ? ` · ${item.location}` : ""}`}
+                            >
+                              <span className="calendar-event-title">{item.title}</span>
+                              <span className="calendar-event-meta">
+                                {item.sourceType === "other" ? item.type : item.type}
+                                {item.time ? ` · ${formatTime(item.time)}` : ""}
+                              </span>
+                            </div>
+                          ))}
+                          {day.events.length > 4 && (
+                            <p className="calendar-more">+{day.events.length - 4} more</p>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {calendarView === "week" && (
+                <div className="week-grid-wrap">
+                  <div className="week-grid">
+                    {calendarWeekDays.map((day) => (
+                      <article
+                        key={day.iso}
+                        className={`week-day ${day.isToday ? "today" : ""}`}
+                      >
+                        <p className="week-day-heading">
+                          <span>{day.weekday}</span>
+                          <span>{day.label}</span>
+                        </p>
+                        <div className="week-day-events">
+                          {day.events.map((item) => (
+                            <div
+                              className={`calendar-event event-${item.sourceType}`}
+                              key={`${item.sourceType}-${item.id}-${day.iso}`}
+                            >
+                              <span className="calendar-event-title">{item.title}</span>
+                              <span className="calendar-event-meta">
+                                {item.sourceType === "other" ? item.type : item.type}
+                                {item.time ? ` · ${formatTime(item.time)}` : ""}
+                                {item.location ? ` · ${item.location}` : ""}
+                              </span>
+                            </div>
+                          ))}
+                          {!day.events.length && <p className="calendar-more">No events</p>}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {activePage === "other-events" && (
+            <>
+              <div className="panel-title-row">
+                <h2>Other events</h2>
+                <span className="tiny-label">{otherEvents.length} items</span>
+              </div>
+
+              <form className="stack form-card" onSubmit={createOtherEvent}>
+                <input
+                  value={otherEventForm.title}
+                  onChange={(event) =>
+                    setOtherEventForm((prev) => ({ ...prev, title: event.target.value }))
+                  }
+                  placeholder="Event title"
+                  required
+                />
+                <div className="split three">
+                  <input
+                    type="date"
+                    value={otherEventForm.event_date}
+                    onChange={(event) =>
+                      setOtherEventForm((prev) => ({ ...prev, event_date: event.target.value }))
+                    }
+                  />
+                  <input
+                    type="time"
+                    value={otherEventForm.event_time}
+                    onChange={(event) =>
+                      setOtherEventForm((prev) => ({ ...prev, event_time: event.target.value }))
+                    }
+                  />
+                  <input
+                    value={otherEventForm.location}
+                    onChange={(event) =>
+                      setOtherEventForm((prev) => ({ ...prev, location: event.target.value }))
+                    }
+                    placeholder="Location"
+                  />
+                </div>
+                <div className="split three">
+                  <select
+                    value={otherEventForm.event_type}
+                    onChange={(event) =>
+                      setOtherEventForm((prev) => ({ ...prev, event_type: event.target.value }))
+                    }
+                  >
+                    {OTHER_EVENT_TYPES.map((eventType) => (
+                      <option key={eventType} value={eventType}>
+                        {eventType}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={otherEventForm.status}
+                    onChange={(event) =>
+                      setOtherEventForm((prev) => ({ ...prev, status: event.target.value }))
+                    }
+                  >
+                    {OTHER_EVENT_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={otherEventForm.drive_url}
+                    onChange={(event) =>
+                      setOtherEventForm((prev) => ({ ...prev, drive_url: event.target.value }))
+                    }
+                    placeholder="Google Drive URL"
+                    type="url"
+                  />
+                </div>
+                <button type="submit" disabled={!canSubmit}>
+                  + Add event
+                </button>
+              </form>
+
               <div className="file-list">
-                {upcomingEvents.map((item) => (
-                  <article className="file-row" key={`${item.type}-${item.id}`}>
+                {otherEvents.map((item) => (
+                  <article className="file-row" key={item.id}>
                     <div className="file-main">
                       <p className="item-title">{item.title}</p>
                       <p className="item-date">
-                        {formatDate(item.date)}
-                        {item.type === "rehearsal" && item.time
-                          ? ` · ${formatTime(item.time)}`
-                          : ""}
+                        {formatDate(item.event_date)}
+                        {item.event_time ? ` · ${formatTime(item.event_time)}` : ""}
                         {item.location ? ` · ${item.location}` : ""}
                       </p>
+                      <p className="item-date">{item.event_type}</p>
+                      {item.drive_url && (
+                        <a href={item.drive_url} target="_blank" rel="noreferrer">
+                          Open Drive media
+                        </a>
+                      )}
                     </div>
                     <div className="file-actions">
-                      <span className="tiny-label">{item.type}</span>
-                      <span className="tag">{item.status}</span>
+                      <select
+                        className="tag-select"
+                        value={item.status}
+                        onChange={(event) => updateOtherEventStatus(item.id, event.target.value)}
+                      >
+                        {OTHER_EVENT_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="ghost danger"
+                        onClick={() => deleteOtherEvent(item.id)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </article>
                 ))}
-                {!upcomingEvents.length && <p className="empty">No upcoming dates yet.</p>}
+                {!otherEvents.length && <p className="empty">No events yet.</p>}
               </div>
             </>
           )}
