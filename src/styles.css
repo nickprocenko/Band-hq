@@ -674,79 +674,13 @@ a {
 }
 
 @media (max-width: 840px) {
-  .workspace {
-    grid-template-columns: 1fr;
+  body {
+    overflow-x: auto;
   }
 
-  .sidebar,
-  .content {
-    min-height: auto;
-  }
-
-  .file-row {
-    grid-template-columns: 1fr;
-  }
-
-  .file-actions {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-
-  .song-row {
-    grid-template-columns: 1fr;
-  }
-
-  .split {
-    grid-template-columns: 1fr;
-  }
-
-  .split.three {
-    grid-template-columns: 1fr;
-  }
-
-  .decision-group {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .calendar-toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .calendar-view-controls {
-    order: 2;
-  }
-
-  .calendar-month-label {
-    order: 3;
-  }
-
-  .calendar-weekdays {
-    display: none;
-  }
-
-  .calendar-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .calendar-day {
-    min-height: auto;
-    border-right: 0;
-  }
-
-  .week-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .week-day {
-    min-height: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(125, 147, 221, 0.22);
-  }
-
-  .week-day:last-child {
-    border-bottom: 0;
+  .page {
+    min-width: 1100px;
+    width: 1100px;
   }
 }
 
