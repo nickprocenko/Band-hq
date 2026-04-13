@@ -5,6 +5,7 @@ const REHEARSAL_STATUSES = ["planned", "draft", "confirmed", "completed"];
 const PERFORMANCE_STATUSES = ["planned", "pending", "confirmed", "completed"];
 const OTHER_EVENT_STATUSES = ["planned", "confirmed", "completed", "cancelled"];
 const OTHER_EVENT_TYPES = ["meeting", "recording", "shoot", "travel", "other"];
+const EVENT_TYPES = ["rehearsal", "performance", "other"];
 const MEMBER_FOLDERS = ["covers", "originals", "songs_im_learning"];
 
 const initialRehearsalForm = {
@@ -39,6 +40,39 @@ function createSongDraft(song = {}) {
     song_artist: song.song_artist || "",
     song_title: song.song_title || "",
     song_url: song.song_url || ""
+  };
+}
+
+function createPerformanceDraft(item = {}) {
+  return {
+    title: item.title || "",
+    performance_date: item.performance_date || "",
+    venue: item.venue || "",
+    status: item.status || "planned",
+    drive_url: item.drive_url || ""
+  };
+}
+
+function createRehearsalDraft(item = {}) {
+  return {
+    title: item.title || "",
+    rehearsal_date: item.rehearsal_date || "",
+    rehearsal_start_time: item.rehearsal_start_time || "",
+    location: item.location || "",
+    status: item.status || "planned",
+    drive_url: item.drive_url || ""
+  };
+}
+
+function createOtherEventDraft(item = {}) {
+  return {
+    title: item.title || "",
+    event_date: item.event_date || "",
+    event_time: item.event_time || "",
+    location: item.location || "",
+    event_type: item.event_type || "meeting",
+    status: item.status || "planned",
+    drive_url: item.drive_url || ""
   };
 }
 
@@ -90,6 +124,17 @@ function toIsoDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function toEventKey(eventType, eventId) {
+  return `${eventType}:${eventId}`;
+}
+
+function createSetlistSongDraft(song = {}) {
+  return {
+    song_artist: song.song_artist || "",
+    song_title: song.song_title || ""
+  };
+}
+
 export default function App() {
   const [activePage, setActivePage] = useState("rehearsals");
   const [rehearsals, setRehearsals] = useState([]);
@@ -98,14 +143,21 @@ export default function App() {
   const [members, setMembers] = useState([]);
   const [memberSongs, setMemberSongs] = useState([]);
   const [rehearsalSongs, setRehearsalSongs] = useState([]);
+  const [eventSetlistSongs, setEventSetlistSongs] = useState([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [memberName, setMemberName] = useState("");
   const [songInputByFolder, setSongInputByFolder] = useState({});
   const [songDraftById, setSongDraftById] = useState({});
   const [rehearsalSongInput, setRehearsalSongInput] = useState({});
+  const [eventSetlistInputByKey, setEventSetlistInputByKey] = useState({});
   const [rehearsalForm, setRehearsalForm] = useState(initialRehearsalForm);
   const [performanceForm, setPerformanceForm] = useState(initialPerformanceForm);
   const [otherEventForm, setOtherEventForm] = useState(initialOtherEventForm);
+  const [performanceEditById, setPerformanceEditById] = useState({});
+  const [rehearsalEditById, setRehearsalEditById] = useState({});
+  const [otherEventEditById, setOtherEventEditById] = useState({});
+  const [setlistTargetType, setSetlistTargetType] = useState("rehearsal");
+  const [setlistTargetId, setSetlistTargetId] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -143,6 +195,34 @@ export default function App() {
       return acc;
     }, {});
   }, [rehearsalSongs]);
+
+  const songsByEventSetlist = useMemo(() => {
+    return eventSetlistSongs.reduce((acc, song) => {
+      const key = toEventKey(song.event_type, song.event_id);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(song);
+      return acc;
+    }, {});
+  }, [eventSetlistSongs]);
+
+  const setlistTargetEvents = useMemo(() => {
+    if (setlistTargetType === "rehearsal") {
+      return rehearsals.map((item) => ({
+        id: item.id,
+        label: `${item.title}${item.rehearsal_date ? ` (${formatDate(item.rehearsal_date)})` : ""}`
+      }));
+    }
+    if (setlistTargetType === "performance") {
+      return performances.map((item) => ({
+        id: item.id,
+        label: `${item.title}${item.performance_date ? ` (${formatDate(item.performance_date)})` : ""}`
+      }));
+    }
+    return otherEvents.map((item) => ({
+      id: item.id,
+      label: `${item.title}${item.event_date ? ` (${formatDate(item.event_date)})` : ""}`
+    }));
+  }, [setlistTargetType, rehearsals, performances, otherEvents]);
 
   const calendarEvents = useMemo(() => {
     const rehearsalEvents = rehearsals
@@ -279,6 +359,16 @@ export default function App() {
   );
   const isEventPage = ["rehearsals", "performances", "other-events"].includes(activePage);
 
+  useEffect(() => {
+    if (!setlistTargetEvents.length) {
+      setSetlistTargetId("");
+      return;
+    }
+    if (!setlistTargetEvents.some((item) => item.id === setlistTargetId)) {
+      setSetlistTargetId(setlistTargetEvents[0].id);
+    }
+  }, [setlistTargetEvents, setlistTargetId]);
+
   async function loadData() {
     if (!isSupabaseConfigured) {
       return;
@@ -293,7 +383,8 @@ export default function App() {
       otherEventsResponse,
       membersResponse,
       memberSongsResponse,
-      rehearsalSongsResponse
+      rehearsalSongsResponse,
+      eventSetlistSongsResponse
     ] = await Promise.all([
       supabase
         .from("rehearsals")
@@ -318,6 +409,10 @@ export default function App() {
       supabase
         .from("rehearsal_songs")
         .select("id, rehearsal_id, song_artist, song_title, created_at")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("event_setlist_songs")
+        .select("id, event_type, event_id, song_artist, song_title, source_member_song_id, created_at")
         .order("created_at", { ascending: true })
     ]);
 
@@ -327,7 +422,8 @@ export default function App() {
       otherEventsResponse.error ||
       membersResponse.error ||
       memberSongsResponse.error ||
-      rehearsalSongsResponse.error
+      rehearsalSongsResponse.error ||
+      eventSetlistSongsResponse.error
     ) {
       setErrorMessage(
         rehearsalsResponse.error?.message ||
@@ -336,6 +432,7 @@ export default function App() {
           membersResponse.error?.message ||
           memberSongsResponse.error?.message ||
           rehearsalSongsResponse.error?.message ||
+            eventSetlistSongsResponse.error?.message ||
           "Could not load data."
       );
       setLoading(false);
@@ -348,6 +445,7 @@ export default function App() {
     setMembers(membersResponse.data || []);
     setMemberSongs(memberSongsResponse.data || []);
     setRehearsalSongs(rehearsalSongsResponse.data || []);
+    setEventSetlistSongs(eventSetlistSongsResponse.data || []);
 
     if (!selectedMemberId && (membersResponse.data || []).length) {
       setSelectedMemberId(membersResponse.data[0].id);
@@ -515,6 +613,168 @@ export default function App() {
       return;
     }
     await loadData();
+  }
+
+  async function savePerformanceEdit(performanceId) {
+    const draft = performanceEditById[performanceId];
+    if (!draft || !draft.title.trim()) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("performances")
+      .update({
+        title: draft.title.trim(),
+        performance_date: draft.performance_date || null,
+        venue: draft.venue.trim() || null,
+        status: draft.status,
+        drive_url: draft.drive_url.trim() || null
+      })
+      .eq("id", performanceId);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setPerformanceEditById((prev) => {
+      const next = { ...prev };
+      delete next[performanceId];
+      return next;
+    });
+    await loadData();
+  }
+
+  async function saveRehearsalEdit(rehearsalId) {
+    const draft = rehearsalEditById[rehearsalId];
+    if (!draft || !draft.title.trim()) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("rehearsals")
+      .update({
+        title: draft.title.trim(),
+        rehearsal_date: draft.rehearsal_date || null,
+        rehearsal_start_time: draft.rehearsal_start_time || null,
+        location: draft.location.trim() || null,
+        status: draft.status,
+        drive_url: draft.drive_url.trim() || null
+      })
+      .eq("id", rehearsalId);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setRehearsalEditById((prev) => {
+      const next = { ...prev };
+      delete next[rehearsalId];
+      return next;
+    });
+    await loadData();
+  }
+
+  async function saveOtherEventEdit(eventId) {
+    const draft = otherEventEditById[eventId];
+    if (!draft || !draft.title.trim()) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("other_events")
+      .update({
+        title: draft.title.trim(),
+        event_date: draft.event_date || null,
+        event_time: draft.event_time || null,
+        location: draft.location.trim() || null,
+        event_type: draft.event_type,
+        status: draft.status,
+        drive_url: draft.drive_url.trim() || null
+      })
+      .eq("id", eventId);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setOtherEventEditById((prev) => {
+      const next = { ...prev };
+      delete next[eventId];
+      return next;
+    });
+    await loadData();
+  }
+
+  async function addSongToEventSetlist(eventType, eventId, song) {
+    const songArtist = (song.song_artist || "").trim();
+    const songTitle = (song.song_title || "").trim();
+    if (!canSubmit || !songTitle || !eventId) {
+      return;
+    }
+
+    if (eventType === "rehearsal") {
+      const { error } = await supabase.from("rehearsal_songs").insert([
+        { rehearsal_id: eventId, song_artist: songArtist || null, song_title: songTitle }
+      ]);
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+      await loadData();
+      return;
+    }
+
+    const { error } = await supabase.from("event_setlist_songs").insert([
+      {
+        event_type: eventType,
+        event_id: eventId,
+        song_artist: songArtist || null,
+        song_title: songTitle,
+        source_member_song_id: song.id || null
+      }
+    ]);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    await loadData();
+  }
+
+  async function addEventSetlistSongFromInput(eventType, eventId) {
+    const key = toEventKey(eventType, eventId);
+    const draft = eventSetlistInputByKey[key] || createSetlistSongDraft();
+    await addSongToEventSetlist(eventType, eventId, draft);
+    setEventSetlistInputByKey((prev) => ({ ...prev, [key]: createSetlistSongDraft() }));
+  }
+
+  async function removeEventSetlistSong(songId) {
+    const { error } = await supabase.from("event_setlist_songs").delete().eq("id", songId);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    await loadData();
+  }
+
+  async function addMemberSongToTargetSetlist(song) {
+    if (!setlistTargetId) {
+      return;
+    }
+    await addSongToEventSetlist(setlistTargetType, setlistTargetId, song);
+  }
+
+  function handleAutoSaveBlur(event, isEditing, onSave) {
+    if (!isEditing) {
+      return;
+    }
+    if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    onSave();
   }
 
   async function addSongToFolder(memberId, folder) {
@@ -830,31 +1090,154 @@ export default function App() {
                 <div className="folder-body">
                   <div className="file-list">
                     {performances.map((item) => (
-                      <article className="file-row" key={item.id}>
+                      <article
+                        className="file-row"
+                        key={item.id}
+                        onBlur={(event) =>
+                          handleAutoSaveBlur(event, Boolean(performanceEditById[item.id]), () =>
+                            savePerformanceEdit(item.id)
+                          )
+                        }
+                      >
                         <div className="file-main">
-                          <p className="item-title">{item.title}</p>
-                          <p className="item-date">
-                            {formatDate(item.performance_date)}
-                            {item.venue ? ` · ${item.venue}` : ""}
-                          </p>
-                          {item.drive_url && (
-                            <a href={item.drive_url} target="_blank" rel="noreferrer">
-                              Open Drive media
-                            </a>
+                          {performanceEditById[item.id] ? (
+                            <div className="stack">
+                              <input
+                                value={performanceEditById[item.id].title}
+                                onChange={(event) =>
+                                  setPerformanceEditById((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      title: event.target.value
+                                    }
+                                  }))
+                                }
+                                placeholder="Performance title"
+                              />
+                              <div className="split three">
+                                <input
+                                  type="date"
+                                  value={performanceEditById[item.id].performance_date}
+                                  onChange={(event) =>
+                                    setPerformanceEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        performance_date: event.target.value
+                                      }
+                                    }))
+                                  }
+                                />
+                                <input
+                                  value={performanceEditById[item.id].venue}
+                                  onChange={(event) =>
+                                    setPerformanceEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        venue: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Venue"
+                                />
+                                <select
+                                  value={performanceEditById[item.id].status}
+                                  onChange={(event) =>
+                                    setPerformanceEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        status: event.target.value
+                                      }
+                                    }))
+                                  }
+                                >
+                                  {PERFORMANCE_STATUSES.map((status) => (
+                                    <option key={status} value={status}>
+                                      {status}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <input
+                                value={performanceEditById[item.id].drive_url}
+                                onChange={(event) =>
+                                  setPerformanceEditById((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      drive_url: event.target.value
+                                    }
+                                  }))
+                                }
+                                placeholder="Google Drive URL"
+                                type="url"
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <p className="item-title">{item.title}</p>
+                              <p className="item-date">
+                                {formatDate(item.performance_date)}
+                                {item.venue ? ` · ${item.venue}` : ""}
+                              </p>
+                              {item.drive_url && (
+                                <a href={item.drive_url} target="_blank" rel="noreferrer">
+                                  Open Drive media
+                                </a>
+                              )}
+                            </>
                           )}
                         </div>
                         <div className="file-actions">
-                          <select
-                            className="tag-select"
-                            value={item.status}
-                            onChange={(event) => updatePerformanceStatus(item.id, event.target.value)}
-                          >
-                            {PERFORMANCE_STATUSES.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
+                          {performanceEditById[item.id] ? (
+                            <>
+                              <button type="button" onClick={() => savePerformanceEdit(item.id)}>
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  setPerformanceEditById((prev) => {
+                                    const next = { ...prev };
+                                    delete next[item.id];
+                                    return next;
+                                  })
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <select
+                                className="tag-select"
+                                value={item.status}
+                                onChange={(event) => updatePerformanceStatus(item.id, event.target.value)}
+                              >
+                                {PERFORMANCE_STATUSES.map((status) => (
+                                  <option key={status} value={status}>
+                                    {status}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  setPerformanceEditById((prev) => ({
+                                    ...prev,
+                                    [item.id]: createPerformanceDraft(item)
+                                  }))
+                                }
+                              >
+                                Edit
+                              </button>
+                            </>
+                          )}
                           <button
                             type="button"
                             className="ghost danger"
@@ -863,6 +1246,66 @@ export default function App() {
                             Delete
                           </button>
                         </div>
+
+                        <details className="folder folder-collapsible set-list" key={`performance-setlist-${item.id}`}>
+                          <summary className="folder-summary">
+                            <span>Set list</span>
+                            <span className="tiny-label">
+                              {(songsByEventSetlist[toEventKey("performance", item.id)] || []).length} songs
+                            </span>
+                          </summary>
+                          <div className="folder-body">
+                            <div className="song-grid">
+                              {(songsByEventSetlist[toEventKey("performance", item.id)] || []).map((song) => (
+                                <div className="song-row compact-song-row" key={song.id}>
+                                  <span className="song-label">
+                                    {song.song_artist ? `${song.song_artist} - ${song.song_title}` : song.song_title}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() => removeEventSetlistSong(song.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="song-row compact-song-row add-row">
+                              <div className="song-fields">
+                                <input
+                                  value={(eventSetlistInputByKey[toEventKey("performance", item.id)] || {}).song_artist || ""}
+                                  onChange={(event) =>
+                                    setEventSetlistInputByKey((prev) => ({
+                                      ...prev,
+                                      [toEventKey("performance", item.id)]: {
+                                        ...(prev[toEventKey("performance", item.id)] || createSetlistSongDraft()),
+                                        song_artist: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Artist"
+                                />
+                                <input
+                                  value={(eventSetlistInputByKey[toEventKey("performance", item.id)] || {}).song_title || ""}
+                                  onChange={(event) =>
+                                    setEventSetlistInputByKey((prev) => ({
+                                      ...prev,
+                                      [toEventKey("performance", item.id)]: {
+                                        ...(prev[toEventKey("performance", item.id)] || createSetlistSongDraft()),
+                                        song_title: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Song title"
+                                />
+                              </div>
+                              <button type="button" onClick={() => addEventSetlistSongFromInput("performance", item.id)}>
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        </details>
                       </article>
                     ))}
                     {!performances.length && <p className="empty">No performances yet.</p>}
@@ -952,17 +1395,120 @@ export default function App() {
                 <div className="folder-body">
                   <div className="file-list">
                     {rehearsals.map((item) => (
-                      <article className="file-row" key={item.id}>
+                      <article
+                        className="file-row"
+                        key={item.id}
+                        onBlur={(event) =>
+                          handleAutoSaveBlur(event, Boolean(rehearsalEditById[item.id]), () =>
+                            saveRehearsalEdit(item.id)
+                          )
+                        }
+                      >
                         <div className="file-main">
-                          <p className="item-title">{item.title}</p>
-                          <p className="item-date">
-                            {formatDate(item.rehearsal_date)} · {formatTime(item.rehearsal_start_time)}
-                            {item.location ? ` · ${item.location}` : ""}
-                          </p>
-                          {item.drive_url && (
-                            <a href={item.drive_url} target="_blank" rel="noreferrer">
-                              Open Drive media
-                            </a>
+                          {rehearsalEditById[item.id] ? (
+                            <div className="stack">
+                              <input
+                                value={rehearsalEditById[item.id].title}
+                                onChange={(event) =>
+                                  setRehearsalEditById((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      title: event.target.value
+                                    }
+                                  }))
+                                }
+                                placeholder="Rehearsal title"
+                              />
+                              <div className="split three">
+                                <input
+                                  type="date"
+                                  value={rehearsalEditById[item.id].rehearsal_date}
+                                  onChange={(event) =>
+                                    setRehearsalEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        rehearsal_date: event.target.value
+                                      }
+                                    }))
+                                  }
+                                />
+                                <input
+                                  type="time"
+                                  value={rehearsalEditById[item.id].rehearsal_start_time}
+                                  onChange={(event) =>
+                                    setRehearsalEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        rehearsal_start_time: event.target.value
+                                      }
+                                    }))
+                                  }
+                                />
+                                <input
+                                  value={rehearsalEditById[item.id].location}
+                                  onChange={(event) =>
+                                    setRehearsalEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        location: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Location"
+                                />
+                              </div>
+                              <div className="split">
+                                <select
+                                  value={rehearsalEditById[item.id].status}
+                                  onChange={(event) =>
+                                    setRehearsalEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        status: event.target.value
+                                      }
+                                    }))
+                                  }
+                                >
+                                  {REHEARSAL_STATUSES.map((status) => (
+                                    <option key={status} value={status}>
+                                      {status}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  value={rehearsalEditById[item.id].drive_url}
+                                  onChange={(event) =>
+                                    setRehearsalEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        drive_url: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Google Drive URL"
+                                  type="url"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="item-title">{item.title}</p>
+                              <p className="item-date">
+                                {formatDate(item.rehearsal_date)} · {formatTime(item.rehearsal_start_time)}
+                                {item.location ? ` · ${item.location}` : ""}
+                              </p>
+                              {item.drive_url && (
+                                <a href={item.drive_url} target="_blank" rel="noreferrer">
+                                  Open Drive media
+                                </a>
+                              )}
+                            </>
                           )}
 
                           <details className="folder folder-collapsible set-list" key={item.id}>
@@ -1026,17 +1572,52 @@ export default function App() {
                           </details>
                         </div>
                         <div className="file-actions">
-                          <select
-                            className="tag-select"
-                            value={item.status}
-                            onChange={(event) => updateRehearsalStatus(item.id, event.target.value)}
-                          >
-                            {REHEARSAL_STATUSES.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
+                          {rehearsalEditById[item.id] ? (
+                            <>
+                              <button type="button" onClick={() => saveRehearsalEdit(item.id)}>
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  setRehearsalEditById((prev) => {
+                                    const next = { ...prev };
+                                    delete next[item.id];
+                                    return next;
+                                  })
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <select
+                                className="tag-select"
+                                value={item.status}
+                                onChange={(event) => updateRehearsalStatus(item.id, event.target.value)}
+                              >
+                                {REHEARSAL_STATUSES.map((status) => (
+                                  <option key={status} value={status}>
+                                    {status}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  setRehearsalEditById((prev) => ({
+                                    ...prev,
+                                    [item.id]: createRehearsalDraft(item)
+                                  }))
+                                }
+                              >
+                                Edit
+                              </button>
+                            </>
+                          )}
                           <button
                             type="button"
                             className="ghost danger"
@@ -1089,6 +1670,36 @@ export default function App() {
                     >
                       Delete member
                     </button>
+                  </div>
+
+                  <div className="form-card">
+                    <p className="note tiny-label">Target event setlist</p>
+                    <div className="split three">
+                      <select
+                        value={setlistTargetType}
+                        onChange={(event) => setSetlistTargetType(event.target.value)}
+                      >
+                        {EVENT_TYPES.map((eventType) => (
+                          <option key={eventType} value={eventType}>
+                            {eventType}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={setlistTargetId}
+                        onChange={(event) => setSetlistTargetId(event.target.value)}
+                        disabled={!setlistTargetEvents.length}
+                      >
+                        {setlistTargetEvents.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="tiny-label">
+                        {setlistTargetEvents.length ? "Choose a song below" : "No events available"}
+                      </p>
+                    </div>
                   </div>
 
                   {MEMBER_FOLDERS.map((folder) => {
@@ -1155,6 +1766,14 @@ export default function App() {
                                 </div>
                                 <button type="button" onClick={() => saveSongEdit(song.id)}>
                                   Save
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => addMemberSongToTargetSetlist(song)}
+                                  disabled={!setlistTargetId}
+                                >
+                                  Add to setlist
                                 </button>
                                 <button
                                   type="button"
@@ -1513,33 +2132,189 @@ export default function App() {
                 <div className="folder-body">
                   <div className="file-list">
                     {otherEvents.map((item) => (
-                      <article className="file-row" key={item.id}>
+                      <article
+                        className="file-row"
+                        key={item.id}
+                        onBlur={(event) =>
+                          handleAutoSaveBlur(event, Boolean(otherEventEditById[item.id]), () =>
+                            saveOtherEventEdit(item.id)
+                          )
+                        }
+                      >
                         <div className="file-main">
-                          <p className="item-title">{item.title}</p>
-                          <p className="item-date">
-                            {formatDate(item.event_date)}
-                            {item.event_time ? ` · ${formatTime(item.event_time)}` : ""}
-                            {item.location ? ` · ${item.location}` : ""}
-                          </p>
-                          <p className="item-date">{item.event_type}</p>
-                          {item.drive_url && (
-                            <a href={item.drive_url} target="_blank" rel="noreferrer">
-                              Open Drive media
-                            </a>
+                          {otherEventEditById[item.id] ? (
+                            <div className="stack">
+                              <input
+                                value={otherEventEditById[item.id].title}
+                                onChange={(event) =>
+                                  setOtherEventEditById((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      title: event.target.value
+                                    }
+                                  }))
+                                }
+                                placeholder="Event title"
+                              />
+                              <div className="split three">
+                                <input
+                                  type="date"
+                                  value={otherEventEditById[item.id].event_date}
+                                  onChange={(event) =>
+                                    setOtherEventEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        event_date: event.target.value
+                                      }
+                                    }))
+                                  }
+                                />
+                                <input
+                                  type="time"
+                                  value={otherEventEditById[item.id].event_time}
+                                  onChange={(event) =>
+                                    setOtherEventEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        event_time: event.target.value
+                                      }
+                                    }))
+                                  }
+                                />
+                                <input
+                                  value={otherEventEditById[item.id].location}
+                                  onChange={(event) =>
+                                    setOtherEventEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        location: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Location"
+                                />
+                              </div>
+                              <div className="split three">
+                                <select
+                                  value={otherEventEditById[item.id].event_type}
+                                  onChange={(event) =>
+                                    setOtherEventEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        event_type: event.target.value
+                                      }
+                                    }))
+                                  }
+                                >
+                                  {OTHER_EVENT_TYPES.map((eventType) => (
+                                    <option key={eventType} value={eventType}>
+                                      {eventType}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={otherEventEditById[item.id].status}
+                                  onChange={(event) =>
+                                    setOtherEventEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        status: event.target.value
+                                      }
+                                    }))
+                                  }
+                                >
+                                  {OTHER_EVENT_STATUSES.map((status) => (
+                                    <option key={status} value={status}>
+                                      {status}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  value={otherEventEditById[item.id].drive_url}
+                                  onChange={(event) =>
+                                    setOtherEventEditById((prev) => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        drive_url: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Google Drive URL"
+                                  type="url"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="item-title">{item.title}</p>
+                              <p className="item-date">
+                                {formatDate(item.event_date)}
+                                {item.event_time ? ` · ${formatTime(item.event_time)}` : ""}
+                                {item.location ? ` · ${item.location}` : ""}
+                              </p>
+                              <p className="item-date">{item.event_type}</p>
+                              {item.drive_url && (
+                                <a href={item.drive_url} target="_blank" rel="noreferrer">
+                                  Open Drive media
+                                </a>
+                              )}
+                            </>
                           )}
                         </div>
                         <div className="file-actions">
-                          <select
-                            className="tag-select"
-                            value={item.status}
-                            onChange={(event) => updateOtherEventStatus(item.id, event.target.value)}
-                          >
-                            {OTHER_EVENT_STATUSES.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
+                          {otherEventEditById[item.id] ? (
+                            <>
+                              <button type="button" onClick={() => saveOtherEventEdit(item.id)}>
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  setOtherEventEditById((prev) => {
+                                    const next = { ...prev };
+                                    delete next[item.id];
+                                    return next;
+                                  })
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <select
+                                className="tag-select"
+                                value={item.status}
+                                onChange={(event) => updateOtherEventStatus(item.id, event.target.value)}
+                              >
+                                {OTHER_EVENT_STATUSES.map((status) => (
+                                  <option key={status} value={status}>
+                                    {status}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  setOtherEventEditById((prev) => ({
+                                    ...prev,
+                                    [item.id]: createOtherEventDraft(item)
+                                  }))
+                                }
+                              >
+                                Edit
+                              </button>
+                            </>
+                          )}
                           <button
                             type="button"
                             className="ghost danger"
@@ -1548,6 +2323,66 @@ export default function App() {
                             Delete
                           </button>
                         </div>
+
+                        <details className="folder folder-collapsible set-list" key={`other-setlist-${item.id}`}>
+                          <summary className="folder-summary">
+                            <span>Set list</span>
+                            <span className="tiny-label">
+                              {(songsByEventSetlist[toEventKey("other", item.id)] || []).length} songs
+                            </span>
+                          </summary>
+                          <div className="folder-body">
+                            <div className="song-grid">
+                              {(songsByEventSetlist[toEventKey("other", item.id)] || []).map((song) => (
+                                <div className="song-row compact-song-row" key={song.id}>
+                                  <span className="song-label">
+                                    {song.song_artist ? `${song.song_artist} - ${song.song_title}` : song.song_title}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() => removeEventSetlistSong(song.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="song-row compact-song-row add-row">
+                              <div className="song-fields">
+                                <input
+                                  value={(eventSetlistInputByKey[toEventKey("other", item.id)] || {}).song_artist || ""}
+                                  onChange={(event) =>
+                                    setEventSetlistInputByKey((prev) => ({
+                                      ...prev,
+                                      [toEventKey("other", item.id)]: {
+                                        ...(prev[toEventKey("other", item.id)] || createSetlistSongDraft()),
+                                        song_artist: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Artist"
+                                />
+                                <input
+                                  value={(eventSetlistInputByKey[toEventKey("other", item.id)] || {}).song_title || ""}
+                                  onChange={(event) =>
+                                    setEventSetlistInputByKey((prev) => ({
+                                      ...prev,
+                                      [toEventKey("other", item.id)]: {
+                                        ...(prev[toEventKey("other", item.id)] || createSetlistSongDraft()),
+                                        song_title: event.target.value
+                                      }
+                                    }))
+                                  }
+                                  placeholder="Song title"
+                                />
+                              </div>
+                              <button type="button" onClick={() => addEventSetlistSongFromInput("other", item.id)}>
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        </details>
                       </article>
                     ))}
                     {!otherEvents.length && <p className="empty">No events yet.</p>}

@@ -82,6 +82,16 @@ create table if not exists public.rehearsal_songs (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.event_setlist_songs (
+  id uuid primary key default gen_random_uuid(),
+  event_type text not null check (event_type in ('performance', 'other')),
+  event_id uuid not null,
+  song_artist text,
+  song_title text not null,
+  source_member_song_id uuid references public.member_song_lists(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
 alter table public.rehearsal_songs add column if not exists song_artist text;
 
 alter table public.rehearsals enable row level security;
@@ -90,6 +100,7 @@ alter table public.other_events enable row level security;
 alter table public.band_members enable row level security;
 alter table public.member_song_lists enable row level security;
 alter table public.rehearsal_songs enable row level security;
+alter table public.event_setlist_songs enable row level security;
 alter table public.rehearsal_song_requests enable row level security;
 alter table public.request_approvals enable row level security;
 
@@ -105,6 +116,8 @@ drop policy if exists "enable_read_member_song_lists" on public.member_song_list
 drop policy if exists "enable_write_member_song_lists" on public.member_song_lists;
 drop policy if exists "enable_read_rehearsal_songs" on public.rehearsal_songs;
 drop policy if exists "enable_write_rehearsal_songs" on public.rehearsal_songs;
+drop policy if exists "enable_read_event_setlist_songs" on public.event_setlist_songs;
+drop policy if exists "enable_write_event_setlist_songs" on public.event_setlist_songs;
 drop policy if exists "enable_read_rehearsal_song_requests" on public.rehearsal_song_requests;
 drop policy if exists "enable_write_rehearsal_song_requests" on public.rehearsal_song_requests;
 drop policy if exists "enable_read_request_approvals" on public.request_approvals;
@@ -172,6 +185,17 @@ create policy "enable_read_rehearsal_songs"
 
 create policy "enable_write_rehearsal_songs"
   on public.rehearsal_songs
+  for all
+  using (true)
+  with check (true);
+
+create policy "enable_read_event_setlist_songs"
+  on public.event_setlist_songs
+  for select
+  using (true);
+
+create policy "enable_write_event_setlist_songs"
+  on public.event_setlist_songs
   for all
   using (true)
   with check (true);
