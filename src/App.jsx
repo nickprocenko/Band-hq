@@ -176,6 +176,9 @@ export default function App() {
   });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [noticeMessage, setNoticeMessage] = useState("");
+  const [isEditingMemberName, setIsEditingMemberName] = useState(false);
+  const [memberEditName, setMemberEditName] = useState("");
 
   const canSubmit = useMemo(() => isSupabaseConfigured && !loading, [loading]);
 
@@ -360,6 +363,11 @@ export default function App() {
   const isEventPage = ["rehearsals", "performances", "other-events"].includes(activePage);
 
   useEffect(() => {
+    setIsEditingMemberName(false);
+    setMemberEditName("");
+  }, [selectedMemberId]);
+
+  useEffect(() => {
     if (!setlistTargetEvents.length) {
       setSetlistTargetId("");
       return;
@@ -464,6 +472,16 @@ export default function App() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!noticeMessage) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setNoticeMessage("");
+    }, 2000);
+    return () => window.clearTimeout(timeoutId);
+  }, [noticeMessage]);
+
   async function createRehearsal(event) {
     event.preventDefault();
     if (!canSubmit || !rehearsalForm.title.trim()) {
@@ -516,6 +534,27 @@ export default function App() {
     }
 
     setMemberName("");
+    await loadData();
+  }
+
+  async function updateMemberName(memberId) {
+    const trimmedName = memberEditName.trim();
+    if (!trimmedName) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("band_members")
+      .update({ name: trimmedName })
+      .eq("id", memberId);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setIsEditingMemberName(false);
+    setMemberEditName("");
     await loadData();
   }
 
@@ -724,6 +763,7 @@ export default function App() {
         return;
       }
       await loadData();
+      setNoticeMessage("Song added to rehearsal set list.");
       return;
     }
 
@@ -742,6 +782,7 @@ export default function App() {
       return;
     }
     await loadData();
+    setNoticeMessage("Song added to event set list.");
   }
 
   async function addEventSetlistSongFromInput(eventType, eventId) {
@@ -964,6 +1005,13 @@ export default function App() {
         </section>
       )}
 
+      {noticeMessage && (
+        <section className="callout warning">
+          <h3>Saved</h3>
+          <p>{noticeMessage}</p>
+        </section>
+      )}
+
       <main className="workspace">
         <aside className="sidebar panel">
           <p className="sidebar-label">Pages</p>
@@ -1019,6 +1067,17 @@ export default function App() {
           {activePage === "members" && (
             <div className="tree-list">
               <p className="sidebar-label">Member folders</p>
+              <form className="stack form-card" onSubmit={createMember}>
+                <input
+                  value={memberName}
+                  onChange={(event) => setMemberName(event.target.value)}
+                  placeholder="Band member name"
+                  required
+                />
+                <button type="submit" disabled={!canSubmit}>
+                  + Add band member
+                </button>
+              </form>
               {members.map((member) => (
                 <button
                   key={member.id}
@@ -1654,34 +1713,62 @@ export default function App() {
                 <span className="tiny-label">{members.length} items</span>
               </div>
 
-              <form className="stack form-card" onSubmit={createMember}>
-                <div className="split">
-                  <input
-                    value={memberName}
-                    onChange={(event) => setMemberName(event.target.value)}
-                    placeholder="Band member name"
-                    required
-                  />
-                  <button type="submit" disabled={!canSubmit}>
-                    + Add band member
-                  </button>
-                </div>
-              </form>
-
               {selectedMember ? (
                 <article className="member-detail">
                   <div className="panel-title-row compact">
                     <div>
-                      <h3 className="member-title">{selectedMember.name}</h3>
+                      {isEditingMemberName ? (
+                        <input
+                          value={memberEditName}
+                          onChange={(event) => setMemberEditName(event.target.value)}
+                          placeholder="Member name"
+                          autoFocus
+                        />
+                      ) : (
+                        <h3 className="member-title">{selectedMember.name}</h3>
+                      )}
                       <p className="item-date">Folder view</p>
                     </div>
-                    <button
-                      type="button"
-                      className="ghost danger"
-                      onClick={() => deleteMember(selectedMember.id)}
-                    >
-                      Delete member
-                    </button>
+                    <div className="file-actions">
+                      {isEditingMemberName ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updateMemberName(selectedMember.id)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              setIsEditingMemberName(false);
+                              setMemberEditName("");
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            setIsEditingMemberName(true);
+                            setMemberEditName(selectedMember.name);
+                          }}
+                        >
+                          Edit name
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="ghost danger"
+                        onClick={() => deleteMember(selectedMember.id)}
+                      >
+                        Delete member
+                      </button>
+                    </div>
                   </div>
 
                   <div className="form-card">
