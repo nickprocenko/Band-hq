@@ -136,7 +136,7 @@ function createSetlistSongDraft(song = {}) {
 }
 
 export default function App() {
-  const [activePage, setActivePage] = useState("rehearsals");
+  const [activePage, setActivePage] = useState("events");
   const [rehearsals, setRehearsals] = useState([]);
   const [performances, setPerformances] = useState([]);
   const [otherEvents, setOtherEvents] = useState([]);
@@ -184,12 +184,27 @@ export default function App() {
   const canSubmit = useMemo(() => isSupabaseConfigured && !loading, [loading]);
 
   function scrollToEventSection(eventType) {
+    if (activePage !== "events") {
+      setActivePage("events");
+    }
     setTimeout(() => {
       const element = document.getElementById(`event-section-${eventType}`);
       if (element) {
         element.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }, 0);
+  }
+
+  async function createEvent(event) {
+    if (eventFormType === "performance") {
+      await createPerformance(event);
+      return;
+    }
+    if (eventFormType === "other") {
+      await createOtherEvent(event);
+      return;
+    }
+    await createRehearsal(event);
   }
 
   const songsByMemberAndFolder = useMemo(() => {
@@ -1101,14 +1116,221 @@ export default function App() {
         </aside>
 
         <section className="content panel">
-          {activePage === "performances" && (
+          {activePage === "events" && (
+            <>
+              <div className="panel-title-row">
+                <h2>Events</h2>
+                <span className="tiny-label">{performances.length + rehearsals.length + otherEvents.length} items</span>
+              </div>
+
+              <form className="stack form-card" onSubmit={createEvent}>
+                <div className="split">
+                  <select
+                    value={eventFormType}
+                    onChange={(event) => setEventFormType(event.target.value)}
+                  >
+                    <option value="rehearsal">Rehearsal</option>
+                    <option value="performance">Performance</option>
+                    <option value="other">Other event</option>
+                  </select>
+                  <input
+                    value={
+                      eventFormType === "performance"
+                        ? performanceForm.title
+                        : eventFormType === "other"
+                          ? otherEventForm.title
+                          : rehearsalForm.title
+                    }
+                    onChange={(event) => {
+                      if (eventFormType === "performance") {
+                        setPerformanceForm((prev) => ({ ...prev, title: event.target.value }));
+                        return;
+                      }
+                      if (eventFormType === "other") {
+                        setOtherEventForm((prev) => ({ ...prev, title: event.target.value }));
+                        return;
+                      }
+                      setRehearsalForm((prev) => ({ ...prev, title: event.target.value }));
+                    }}
+                    placeholder="Event title"
+                    required
+                  />
+                </div>
+
+                {eventFormType === "performance" ? (
+                  <>
+                    <div className="split three">
+                      <input
+                        type="date"
+                        value={performanceForm.performance_date}
+                        onChange={(event) =>
+                          setPerformanceForm((prev) => ({
+                            ...prev,
+                            performance_date: event.target.value
+                          }))
+                        }
+                      />
+                      <input
+                        value={performanceForm.venue}
+                        onChange={(event) =>
+                          setPerformanceForm((prev) => ({ ...prev, venue: event.target.value }))
+                        }
+                        placeholder="Venue"
+                      />
+                      <select
+                        value={performanceForm.status}
+                        onChange={(event) =>
+                          setPerformanceForm((prev) => ({ ...prev, status: event.target.value }))
+                        }
+                      >
+                        {PERFORMANCE_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <input
+                      value={performanceForm.drive_url}
+                      onChange={(event) =>
+                        setPerformanceForm((prev) => ({ ...prev, drive_url: event.target.value }))
+                      }
+                      placeholder="Google Drive URL"
+                      type="url"
+                    />
+                  </>
+                ) : eventFormType === "other" ? (
+                  <>
+                    <div className="split three">
+                      <input
+                        type="date"
+                        value={otherEventForm.event_date}
+                        onChange={(event) =>
+                          setOtherEventForm((prev) => ({ ...prev, event_date: event.target.value }))
+                        }
+                      />
+                      <input
+                        type="time"
+                        value={otherEventForm.event_time}
+                        onChange={(event) =>
+                          setOtherEventForm((prev) => ({ ...prev, event_time: event.target.value }))
+                        }
+                      />
+                      <input
+                        value={otherEventForm.location}
+                        onChange={(event) =>
+                          setOtherEventForm((prev) => ({ ...prev, location: event.target.value }))
+                        }
+                        placeholder="Location"
+                      />
+                    </div>
+                    <div className="split three">
+                      <select
+                        value={otherEventForm.event_type}
+                        onChange={(event) =>
+                          setOtherEventForm((prev) => ({ ...prev, event_type: event.target.value }))
+                        }
+                      >
+                        {OTHER_EVENT_TYPES.map((eventType) => (
+                          <option key={eventType} value={eventType}>
+                            {eventType}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={otherEventForm.status}
+                        onChange={(event) =>
+                          setOtherEventForm((prev) => ({ ...prev, status: event.target.value }))
+                        }
+                      >
+                        {OTHER_EVENT_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={otherEventForm.drive_url}
+                        onChange={(event) =>
+                          setOtherEventForm((prev) => ({ ...prev, drive_url: event.target.value }))
+                        }
+                        placeholder="Google Drive URL"
+                        type="url"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="split three">
+                      <input
+                        type="date"
+                        value={rehearsalForm.rehearsal_date}
+                        onChange={(event) =>
+                          setRehearsalForm((prev) => ({
+                            ...prev,
+                            rehearsal_date: event.target.value
+                          }))
+                        }
+                      />
+                      <input
+                        type="time"
+                        value={rehearsalForm.rehearsal_start_time}
+                        onChange={(event) =>
+                          setRehearsalForm((prev) => ({
+                            ...prev,
+                            rehearsal_start_time: event.target.value
+                          }))
+                        }
+                      />
+                      <input
+                        value={rehearsalForm.location}
+                        onChange={(event) =>
+                          setRehearsalForm((prev) => ({ ...prev, location: event.target.value }))
+                        }
+                        placeholder="Location"
+                      />
+                    </div>
+                    <div className="split">
+                      <select
+                        value={rehearsalForm.status}
+                        onChange={(event) =>
+                          setRehearsalForm((prev) => ({ ...prev, status: event.target.value }))
+                        }
+                      >
+                        {REHEARSAL_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={rehearsalForm.drive_url}
+                        onChange={(event) =>
+                          setRehearsalForm((prev) => ({ ...prev, drive_url: event.target.value }))
+                        }
+                        placeholder="Google Drive URL"
+                        type="url"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <button type="submit" disabled={!canSubmit}>
+                  + Add event
+                </button>
+              </form>
+            </>
+          )}
+
+          {(activePage === "performances" || activePage === "events") && (
             <>
               <div className="panel-title-row">
                 <h2>Performances</h2>
                 <span className="tiny-label">{performances.length} items</span>
               </div>
 
-              <form className="stack form-card" onSubmit={createPerformance}>
+              {activePage === "performances" && (
+                <form className="stack form-card" onSubmit={createPerformance}>
                 <input
                   value={performanceForm.title}
                   onChange={(event) =>
@@ -1159,9 +1381,10 @@ export default function App() {
                 <button type="submit" disabled={!canSubmit}>
                   + Add performance
                 </button>
-              </form>
+                </form>
+              )}
 
-              <details className="folder folder-collapsible event-list-section" open>
+              <details id="event-section-performances" className="folder folder-collapsible event-list-section">
                 <summary className="folder-summary">
                   <span>Performance list</span>
                   <span className="tiny-label">{performances.length} items</span>
@@ -1394,14 +1617,15 @@ export default function App() {
             </>
           )}
 
-          {activePage === "rehearsals" && (
+          {(activePage === "rehearsals" || activePage === "events") && (
             <>
               <div className="panel-title-row">
                 <h2>Rehearsals</h2>
                 <span className="tiny-label">{rehearsals.length} items</span>
               </div>
 
-              <form className="stack form-card" onSubmit={createRehearsal}>
+              {activePage === "rehearsals" && (
+                <form className="stack form-card" onSubmit={createRehearsal}>
                 <input
                   value={rehearsalForm.title}
                   onChange={(event) =>
@@ -1464,9 +1688,10 @@ export default function App() {
                 <button type="submit" disabled={!canSubmit}>
                   + Add rehearsal
                 </button>
-              </form>
+                </form>
+              )}
 
-              <details className="folder folder-collapsible event-list-section" open>
+              <details id="event-section-rehearsals" className="folder folder-collapsible event-list-section">
                 <summary className="folder-summary">
                   <span>Rehearsal list</span>
                   <span className="tiny-label">{rehearsals.length} items</span>
@@ -2334,14 +2559,15 @@ export default function App() {
             </>
           )}
 
-          {activePage === "other-events" && (
+          {(activePage === "other-events" || activePage === "events") && (
             <>
               <div className="panel-title-row">
                 <h2>Other events</h2>
                 <span className="tiny-label">{otherEvents.length} items</span>
               </div>
 
-              <form className="stack form-card" onSubmit={createOtherEvent}>
+              {activePage === "other-events" && (
+                <form className="stack form-card" onSubmit={createOtherEvent}>
                 <input
                   value={otherEventForm.title}
                   onChange={(event) =>
@@ -2410,9 +2636,10 @@ export default function App() {
                 <button type="submit" disabled={!canSubmit}>
                   + Add event
                 </button>
-              </form>
+                </form>
+              )}
 
-              <details className="folder folder-collapsible event-list-section" open>
+              <details id="event-section-otherEvents" className="folder folder-collapsible event-list-section">
                 <summary className="folder-summary">
                   <span>Other event list</span>
                   <span className="tiny-label">{otherEvents.length} items</span>
