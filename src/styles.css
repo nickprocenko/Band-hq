@@ -674,13 +674,83 @@ a {
 }
 
 @media (max-width: 840px) {
-  body {
-    overflow-x: auto;
+  .page {
+    margin: 1.5rem auto;
+    width: 100%;
+    padding: 0 0.75rem;
   }
 
-  .page {
-    min-width: 1100px;
-    width: 1100px;
+  h1 {
+    font-size: clamp(1.8rem, 6vw, 2.7rem);
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .sidebar {
+    min-height: auto;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .split {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .split.three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .panel {
+    padding: 0.75rem;
+  }
+
+  .file-row {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .file-actions {
+    justify-content: flex-start;
+  }
+
+  button {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.9rem;
+  }
+
+  input,
+  select {
+    padding: 0.45rem 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  .calendar-day {
+    min-height: 100px;
+    padding: 0.3rem;
+  }
+
+  .calendar-event {
+    padding: 0.25rem 0.3rem;
+  }
+
+  .calendar-event-title {
+    font-size: 0.7rem;
+  }
+
+  .week-day {
+    padding: 0.4rem;
+    min-height: 200px;
+  }
+
+  .song-row {
+    gap: 0.35rem;
   }
 }
 

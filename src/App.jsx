@@ -179,8 +179,18 @@ export default function App() {
   const [noticeMessage, setNoticeMessage] = useState("");
   const [isEditingMemberName, setIsEditingMemberName] = useState(false);
   const [memberEditName, setMemberEditName] = useState("");
+  const [eventFormType, setEventFormType] = useState("rehearsal");
 
   const canSubmit = useMemo(() => isSupabaseConfigured && !loading, [loading]);
+
+  function scrollToEventSection(eventType) {
+    setTimeout(() => {
+      const element = document.getElementById(`event-section-${eventType}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 0);
+  }
 
   const songsByMemberAndFolder = useMemo(() => {
     return memberSongs.reduce((acc, song) => {
@@ -360,7 +370,7 @@ export default function App() {
     () => members.find((member) => member.id === selectedMemberId) || null,
     [members, selectedMemberId]
   );
-  const isEventPage = ["rehearsals", "performances", "other-events"].includes(activePage);
+  const isEventPage = activePage === "events";
 
   useEffect(() => {
     setIsEditingMemberName(false);
@@ -455,14 +465,12 @@ export default function App() {
     setRehearsalSongs(rehearsalSongsResponse.data || []);
     setEventSetlistSongs(eventSetlistSongsResponse.data || []);
 
-    if (!selectedMemberId && (membersResponse.data || []).length) {
-      setSelectedMemberId(membersResponse.data[0].id);
-    }
+    // Don't auto-select members
     if (
       selectedMemberId &&
       !(membersResponse.data || []).some((member) => member.id === selectedMemberId)
     ) {
-      setSelectedMemberId((membersResponse.data || [])[0]?.id || "");
+      setSelectedMemberId("");
     }
 
     setLoading(false);
@@ -1018,7 +1026,7 @@ export default function App() {
           <button
             type="button"
             className={`nav-item ${isEventPage ? "active" : ""}`}
-            onClick={() => setActivePage("rehearsals")}
+            onClick={() => setActivePage("events")}
           >
             Events
           </button>
@@ -1039,25 +1047,25 @@ export default function App() {
 
           {isEventPage && (
             <div className="tree-list">
-              <p className="sidebar-label">Event pages</p>
+              <p className="sidebar-label">Event categories</p>
               <button
                 type="button"
-                className={`tree-item ${activePage === "performances" ? "active" : ""}`}
-                onClick={() => setActivePage("performances")}
+                className="tree-item"
+                onClick={() => scrollToEventSection("performances")}
               >
                 Performances
               </button>
               <button
                 type="button"
-                className={`tree-item ${activePage === "rehearsals" ? "active" : ""}`}
-                onClick={() => setActivePage("rehearsals")}
+                className="tree-item"
+                onClick={() => scrollToEventSection("rehearsals")}
               >
                 Rehearsals
               </button>
               <button
                 type="button"
-                className={`tree-item ${activePage === "other-events" ? "active" : ""}`}
-                onClick={() => setActivePage("other-events")}
+                className="tree-item"
+                onClick={() => scrollToEventSection("otherEvents")}
               >
                 Other events
               </button>
@@ -1771,36 +1779,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="form-card">
-                    <p className="note tiny-label">Target event setlist</p>
-                    <div className="split three">
-                      <select
-                        value={setlistTargetType}
-                        onChange={(event) => setSetlistTargetType(event.target.value)}
-                      >
-                        {EVENT_TYPES.map((eventType) => (
-                          <option key={eventType} value={eventType}>
-                            {eventType}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={setlistTargetId}
-                        onChange={(event) => setSetlistTargetId(event.target.value)}
-                        disabled={!setlistTargetEvents.length}
-                      >
-                        {setlistTargetEvents.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.label}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="tiny-label">
-                        {setlistTargetEvents.length ? "Choose a song below" : "No events available"}
-                      </p>
-                    </div>
-                  </div>
-
                   {MEMBER_FOLDERS.map((folder) => {
                     const key = `${selectedMember.id}:${folder}`;
                     const songs = songsByMemberAndFolder[key] || [];
@@ -2120,6 +2098,36 @@ export default function App() {
                       </details>
                     );
                   })}
+
+                  <div className="form-card">
+                    <p className="note tiny-label">Target event setlist</p>
+                    <div className="split three">
+                      <select
+                        value={setlistTargetType}
+                        onChange={(event) => setSetlistTargetType(event.target.value)}
+                      >
+                        {EVENT_TYPES.map((eventType) => (
+                          <option key={eventType} value={eventType}>
+                            {eventType}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={setlistTargetId}
+                        onChange={(event) => setSetlistTargetId(event.target.value)}
+                        disabled={!setlistTargetEvents.length}
+                      >
+                        {setlistTargetEvents.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="tiny-label">
+                        {setlistTargetEvents.length ? "Choose a song above" : "No events available"}
+                      </p>
+                    </div>
+                  </div>
                 </article>
               ) : (
                 <p className="empty">No member selected.</p>
