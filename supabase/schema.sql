@@ -1,5 +1,14 @@
 create extension if not exists pgcrypto;
 
+create table if not exists public.bands (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  password text,
+  artwork_url text,
+  background_url text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.rehearsals (
   id uuid primary key default gen_random_uuid(),
   title text
@@ -30,7 +39,7 @@ create table if not exists public.other_events (
   event_date date,
   event_time time,
   location text,
-  event_type text not null default 'meeting' check (event_type in ('meeting', 'recording', 'shoot', 'travel', 'other')),
+  event_type text not null default 'meeting' check (event_type in ('meeting', 'recording', 'shoot', 'travel', 'open_mic', 'other')),
   status text not null default 'planned' check (status in ('planned', 'confirmed', 'completed', 'cancelled')),
   drive_url text,
   created_at timestamptz not null default now()
@@ -221,3 +230,27 @@ create policy "enable_write_request_approvals"
   for all
   using (true)
   with check (true);
+
+alter table public.bands enable row level security;
+
+drop policy if exists "enable_read_bands" on public.bands;
+drop policy if exists "enable_write_bands" on public.bands;
+
+create policy "enable_read_bands"
+  on public.bands
+  for select
+  using (true);
+
+create policy "enable_write_bands"
+  on public.bands
+  for all
+  using (true)
+  with check (true);
+
+alter table public.rehearsals add column if not exists band_id uuid references public.bands(id) on delete cascade;
+alter table public.performances add column if not exists band_id uuid references public.bands(id) on delete cascade;
+alter table public.other_events add column if not exists band_id uuid references public.bands(id) on delete cascade;
+alter table public.band_members add column if not exists band_id uuid references public.bands(id) on delete cascade;
+alter table public.member_song_lists add column if not exists band_id uuid references public.bands(id) on delete cascade;
+alter table public.rehearsal_songs add column if not exists band_id uuid references public.bands(id) on delete cascade;
+alter table public.event_setlist_songs add column if not exists band_id uuid references public.bands(id) on delete cascade;

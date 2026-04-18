@@ -4,7 +4,7 @@ import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 const REHEARSAL_STATUSES = ["planned", "draft", "confirmed", "completed"];
 const PERFORMANCE_STATUSES = ["planned", "pending", "confirmed", "completed"];
 const OTHER_EVENT_STATUSES = ["planned", "confirmed", "completed", "cancelled"];
-const OTHER_EVENT_TYPES = ["meeting", "recording", "shoot", "travel", "other"];
+const OTHER_EVENT_TYPES = ["meeting", "recording", "shoot", "travel", "open_mic", "other"];
 const EVENT_TYPES = ["rehearsal", "performance", "other"];
 const MEMBER_FOLDERS = ["covers", "originals", "songs_im_learning"];
 
@@ -136,6 +136,12 @@ function createSetlistSongDraft(song = {}) {
 }
 
 export default function App() {
+  const [bands, setBands] = useState([]);
+  const [selectedBand, setSelectedBand] = useState(null);
+  const [bandName, setBandName] = useState("");
+  const [bandArtworkUrl, setBandArtworkUrl] = useState("");
+  const [bandBackgroundUrl, setBandBackgroundUrl] = useState("");
+  const [bandPassword, setBandPassword] = useState("");
   const [activePage, setActivePage] = useState("events");
   const [rehearsals, setRehearsals] = useState([]);
   const [performances, setPerformances] = useState([]);
@@ -180,6 +186,7 @@ export default function App() {
   const [isEditingMemberName, setIsEditingMemberName] = useState(false);
   const [memberEditName, setMemberEditName] = useState("");
   const [eventFormType, setEventFormType] = useState("rehearsal");
+  const [calendarDatePopup, setCalendarDatePopup] = useState(null);
 
   const canSubmit = useMemo(() => isSupabaseConfigured && !loading, [loading]);
 
@@ -196,12 +203,33 @@ export default function App() {
   }
 
   function handleCalendarDateClick(iso) {
-    if (!window.confirm(`Add a new event on ${iso}?`)) return;
+    const events = calendarEventsByDate[iso] || [];
+    setCalendarDatePopup({ iso, events });
+  }
+
+  function handleCalendarAddEvent() {
+    const iso = calendarDatePopup.iso;
+    setCalendarDatePopup(null);
     setRehearsalForm({ ...initialRehearsalForm, rehearsal_date: iso });
     setPerformanceForm({ ...initialPerformanceForm, performance_date: iso });
     setOtherEventForm({ ...initialOtherEventForm, event_date: iso });
     setEventFormType("rehearsal");
     setActivePage("events");
+  }
+
+  async function handleCalendarDeleteEvent(event) {
+    if (event.sourceType === "rehearsal") {
+      await deleteRehearsal(event.id);
+    } else if (event.sourceType === "performance") {
+      await deletePerformance(event.id);
+    } else {
+      await deleteOtherEvent(event.id);
+    }
+    setCalendarDatePopup((prev) => {
+      if (!prev) return null;
+      const remaining = (prev.events || []).filter((e) => e.id !== event.id);
+      return { ...prev, events: remaining };
+    });
   }
 
   async function createEvent(event) {
@@ -411,8 +439,72 @@ export default function App() {
     }
   }, [setlistTargetEvents, setlistTargetId]);
 
+  async function loadBands() {
+    if (!isSupabaseConfigured) return;
+    const { data, error } = await supabase
+      .from("bands")
+      .select("id, name, password, artwork_url, background_url, created_at")
+      .order("name", { ascending: true });
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    setBands(data || []);
+    if (selectedBand && !(data || []).some((b) => b.id === selectedBand.id)) {
+      setSelectedBand(null);
+    }
+  }
+
+  async function createBand(event) {
+    event.preventDefault();
+    if (!canSubmit || !bandName.trim()) return;
+    setLoading(true);
+    setErrorMessage("");
+    const { error } = await supabase.from("bands").insert([{
+      name: bandName.trim(),
+      password: bandPassword.trim() || null,
+      artwork_url: bandArtworkUrl.trim() || null,
+      background_url: bandBackgroundUrl.trim() || null
+    }]);
+    if (error) {
+      setErrorMessage(error.message);
+      setLoading(false);
+      return;
+    }
+    setBandName("");
+    setBandPassword("");
+    setBandArtworkUrl("");
+    setBandBackgroundUrl("");
+    await loadBands();
+    setLoading(false);
+  }
+
+  async function deleteBand(bandId) {
+    if (!window.confirm("Delete this band and all its data?")) return;
+    const { error } = await supabase.from("bands").delete().eq("id", bandId);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    if (selectedBand?.id === bandId) setSelectedBand(null);
+    await loadBands();
+  }
+
+  function selectBand(band) {
+    if (band.password) {
+      const input = window.prompt(`Enter password for ${band.name}`);
+      if (input === null) return;
+      if (input !== band.password) {
+        setErrorMessage("Incorrect password.");
+        return;
+      }
+    }
+    setSelectedBand(band);
+    setActivePage("events");
+  }
+
   async function loadData() {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !selectedBand) {
       return;
     }
 
@@ -431,30 +523,37 @@ export default function App() {
       supabase
         .from("rehearsals")
         .select("id, title, rehearsal_date, rehearsal_start_time, location, status, drive_url")
+        .eq("band_id", selectedBand.id)
         .order("rehearsal_date", { ascending: true, nullsFirst: false }),
       supabase
         .from("performances")
         .select("id, title, performance_date, venue, status, drive_url")
+        .eq("band_id", selectedBand.id)
         .order("performance_date", { ascending: true, nullsFirst: false }),
       supabase
         .from("other_events")
         .select("id, title, event_date, event_time, location, event_type, status, drive_url")
+        .eq("band_id", selectedBand.id)
         .order("event_date", { ascending: true, nullsFirst: false }),
       supabase
         .from("band_members")
         .select("id, name, created_at")
+        .eq("band_id", selectedBand.id)
         .order("name", { ascending: true }),
       supabase
         .from("member_song_lists")
         .select("id, member_id, folder, song_artist, song_title, song_url, created_at")
+        .eq("band_id", selectedBand.id)
         .order("created_at", { ascending: true }),
       supabase
         .from("rehearsal_songs")
         .select("id, rehearsal_id, song_artist, song_title, created_at")
+        .eq("band_id", selectedBand.id)
         .order("created_at", { ascending: true }),
       supabase
         .from("event_setlist_songs")
         .select("id, event_type, event_id, song_artist, song_title, source_member_song_id, created_at")
+        .eq("band_id", selectedBand.id)
         .order("created_at", { ascending: true })
     ]);
 
@@ -501,8 +600,15 @@ export default function App() {
   }
 
   useEffect(() => {
-    loadData();
+    loadBands();
   }, []);
+
+  useEffect(() => {
+    if (selectedBand) {
+      setSelectedMemberId("");
+      loadData();
+    }
+  }, [selectedBand]);
 
   useEffect(() => {
     if (!noticeMessage) {
@@ -525,6 +631,7 @@ export default function App() {
 
     const { error } = await supabase.from("rehearsals").insert([
       {
+        band_id: selectedBand.id,
         title: rehearsalForm.title.trim(),
         rehearsal_date: rehearsalForm.rehearsal_date || null,
         rehearsal_start_time: rehearsalForm.rehearsal_start_time || null,
@@ -555,6 +662,7 @@ export default function App() {
 
     const { error } = await supabase.from("band_members").insert([
       {
+        band_id: selectedBand.id,
         name: memberName.trim()
       }
     ]);
@@ -601,6 +709,7 @@ export default function App() {
 
     const { error } = await supabase.from("performances").insert([
       {
+        band_id: selectedBand.id,
         title: performanceForm.title.trim(),
         performance_date: performanceForm.performance_date || null,
         venue: performanceForm.venue.trim() || null,
@@ -630,6 +739,7 @@ export default function App() {
 
     const { error } = await supabase.from("other_events").insert([
       {
+        band_id: selectedBand.id,
         title: otherEventForm.title.trim(),
         event_date: otherEventForm.event_date || null,
         event_time: otherEventForm.event_time || null,
@@ -788,7 +898,7 @@ export default function App() {
 
     if (eventType === "rehearsal") {
       const { error } = await supabase.from("rehearsal_songs").insert([
-        { rehearsal_id: eventId, song_artist: songArtist || null, song_title: songTitle }
+        { band_id: selectedBand.id, rehearsal_id: eventId, song_artist: songArtist || null, song_title: songTitle }
       ]);
       if (error) {
         setErrorMessage(error.message);
@@ -801,6 +911,7 @@ export default function App() {
 
     const { error } = await supabase.from("event_setlist_songs").insert([
       {
+        band_id: selectedBand.id,
         event_type: eventType,
         event_id: eventId,
         song_artist: songArtist || null,
@@ -862,6 +973,7 @@ export default function App() {
 
     const { error } = await supabase.from("member_song_lists").insert([
       {
+        band_id: selectedBand.id,
         member_id: memberId,
         folder,
         song_artist: folder === "originals" ? null : songArtist || null,
@@ -989,7 +1101,7 @@ export default function App() {
     if (!canSubmit || !title) return;
 
     const { error } = await supabase.from("rehearsal_songs").insert([
-      { rehearsal_id: rehearsalId, song_artist: artist || null, song_title: title }
+      { band_id: selectedBand.id, rehearsal_id: rehearsalId, song_artist: artist || null, song_title: title }
     ]);
 
     if (error) {
@@ -1043,6 +1155,84 @@ export default function App() {
           <p>{noticeMessage}</p>
         </section>
       )}
+
+      {!selectedBand && (
+        <div className="band-picker">
+          <h2 className="band-picker-title">Select a band</h2>
+
+          <div className="band-grid">
+            {bands.map((band) => (
+              <article
+                key={band.id}
+                className="band-card"
+                style={band.background_url ? { backgroundImage: `url(${band.background_url})` } : undefined}
+                onClick={() => selectBand(band)}
+              >
+                {band.artwork_url && (
+                  <img className="band-artwork" src={band.artwork_url} alt={band.name} />
+                )}
+                <div className="band-card-info">
+                  <h3 className="band-card-name">{band.name}</h3>
+                </div>
+                <button
+                  type="button"
+                  className="btn-delete-sm band-delete"
+                  onClick={(e) => { e.stopPropagation(); deleteBand(band.id); }}
+                >
+                  Delete
+                </button>
+              </article>
+            ))}
+          </div>
+
+          {!bands.length && <p className="empty">No bands yet. Create your first one below.</p>}
+
+          <form className="stack form-card band-create-form" onSubmit={createBand}>
+            <h3>Create a new band</h3>
+            <input
+              value={bandName}
+              onChange={(e) => setBandName(e.target.value)}
+              placeholder="Band name"
+              required
+            />
+            <input
+              value={bandArtworkUrl}
+              onChange={(e) => setBandArtworkUrl(e.target.value)}
+              placeholder="Artwork URL (optional)"
+              type="url"
+            />
+            <input
+              value={bandBackgroundUrl}
+              onChange={(e) => setBandBackgroundUrl(e.target.value)}
+              placeholder="Background image URL (optional)"
+              type="url"
+            />
+            <input
+              value={bandPassword}
+              onChange={(e) => setBandPassword(e.target.value)}
+              placeholder="Password (optional)"
+              type="password"
+            />
+            <button type="submit" disabled={!canSubmit || !bandName.trim()}>
+              Create band
+            </button>
+          </form>
+        </div>
+      )}
+
+      {selectedBand && (
+        <>
+        <div className="band-bar">
+          <button type="button" className="band-back-btn" onClick={() => setSelectedBand(null)}>
+            ← Bands
+          </button>
+          <div className="band-bar-info">
+            {selectedBand.artwork_url && (
+              <img className="band-bar-artwork" src={selectedBand.artwork_url} alt={selectedBand.name} />
+            )}
+            <span className="band-bar-name">{selectedBand.name}</span>
+          </div>
+        </div>
 
       <main className="workspace">
         <aside className="sidebar panel">
@@ -2567,6 +2757,48 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {calendarDatePopup && (
+                <div className="calendar-popup-overlay" onClick={() => setCalendarDatePopup(null)}>
+                  <div className="calendar-popup" onClick={(e) => e.stopPropagation()}>
+                    <div className="calendar-popup-header">
+                      <h3>{calendarDatePopup.iso}</h3>
+                      <button type="button" className="btn-close" onClick={() => setCalendarDatePopup(null)}>✕</button>
+                    </div>
+
+                    {calendarDatePopup.events.length > 0 && (
+                      <div className="calendar-popup-events">
+                        <p className="sidebar-label">Events on this date</p>
+                        {calendarDatePopup.events.map((item) => (
+                          <div key={`${item.sourceType}-${item.id}`} className={`calendar-popup-event event-${item.sourceType}`}>
+                            <div className="calendar-popup-event-info">
+                              <span className="calendar-popup-event-title">{item.title}</span>
+                              <span className="calendar-popup-event-meta">
+                                {item.type}{item.time ? ` · ${formatTime(item.time)}` : ""}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn-delete-sm"
+                              onClick={() => handleCalendarDeleteEvent(item)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!calendarDatePopup.events.length && (
+                      <p className="calendar-popup-empty">No events on this date.</p>
+                    )}
+
+                    <button type="button" className="btn-add-event" onClick={handleCalendarAddEvent}>
+                      + Add new event
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -2919,6 +3151,8 @@ export default function App() {
           )}
         </section>
       </main>
+      </>
+      )}
     </div>
   );
 }

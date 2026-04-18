@@ -59,6 +59,134 @@ h1 {
   font-size: 1.03rem;
 }
 
+/* Band picker */
+.band-picker {
+  margin-top: 0.5rem;
+}
+
+.band-picker-title {
+  margin: 0 0 1rem;
+  font-size: 1.3rem;
+}
+
+.band-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.band-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  transition: border-color 200ms;
+}
+
+.band-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 7, 13, 0.65);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.band-card:hover {
+  border-color: var(--teal);
+}
+
+.band-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.band-artwork {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.band-card-name {
+  margin: 0;
+  font-size: 1.15rem;
+  text-align: center;
+}
+
+.band-delete {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.band-card:hover .band-delete {
+  opacity: 1;
+}
+
+.band-create-form {
+  max-width: 400px;
+}
+
+/* Band bar */
+.band-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.band-back-btn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.band-back-btn:hover {
+  color: var(--ink);
+  border-color: var(--teal);
+}
+
+.band-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.band-bar-artwork {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.band-bar-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -637,6 +765,127 @@ a {
   margin: 0;
   font-size: 0.72rem;
   color: var(--muted);
+}
+
+.calendar-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.calendar-popup {
+  background: #0f1222;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.4rem;
+  width: min(420px, 90vw);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.calendar-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.calendar-popup-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+}
+
+.btn-close:hover {
+  color: var(--ink);
+  background: rgba(125, 147, 221, 0.12);
+}
+
+.calendar-popup-events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.calendar-popup-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+}
+
+.calendar-popup-event-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.calendar-popup-event-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-popup-event-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.btn-delete-sm {
+  flex-shrink: 0;
+  background: rgba(239, 93, 122, 0.15);
+  color: var(--rose);
+  border: 1px solid rgba(239, 93, 122, 0.3);
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.btn-delete-sm:hover {
+  background: rgba(239, 93, 122, 0.3);
+}
+
+.calendar-popup-empty {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.btn-add-event {
+  width: 100%;
+  padding: 0.55rem;
+  background: rgba(53, 208, 186, 0.15);
+  color: var(--teal);
+  border: 1px solid rgba(53, 208, 186, 0.3);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-add-event:hover {
+  background: rgba(53, 208, 186, 0.25);
 }
 
 .week-grid-wrap {
