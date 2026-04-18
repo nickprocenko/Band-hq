@@ -566,6 +566,11 @@ a {
   padding: 0.45rem;
   border-right: 1px solid rgba(125, 147, 221, 0.22);
   border-bottom: 1px solid rgba(125, 147, 221, 0.22);
+  cursor: pointer;
+}
+
+.calendar-day:hover {
+  background: rgba(125, 147, 221, 0.08);
 }
 
 .calendar-day:nth-child(7n) {
@@ -649,6 +654,11 @@ a {
   padding: 0.6rem;
   border-right: 1px solid rgba(125, 147, 221, 0.22);
   min-height: 320px;
+  cursor: pointer;
+}
+
+.week-day:hover {
+  background: rgba(125, 147, 221, 0.08);
 }
 
 .week-day:last-child {

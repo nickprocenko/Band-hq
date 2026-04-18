@@ -195,6 +195,15 @@ export default function App() {
     }, 0);
   }
 
+  function handleCalendarDateClick(iso) {
+    if (!window.confirm(`Add a new event on ${iso}?`)) return;
+    setRehearsalForm({ ...initialRehearsalForm, rehearsal_date: iso });
+    setPerformanceForm({ ...initialPerformanceForm, performance_date: iso });
+    setOtherEventForm({ ...initialOtherEventForm, event_date: iso });
+    setEventFormType("rehearsal");
+    setActivePage("events");
+  }
+
   async function createEvent(event) {
     if (eventFormType === "performance") {
       await createPerformance(event);
@@ -2497,6 +2506,7 @@ export default function App() {
                       <article
                         key={day.iso}
                         className={`calendar-day ${day.isCurrentMonth ? "" : "outside"} ${day.isToday ? "today" : ""}`}
+                        onClick={() => handleCalendarDateClick(day.iso)}
                       >
                         <p className="calendar-day-number">{day.label}</p>
                         <div className="calendar-day-events">
@@ -2530,6 +2540,7 @@ export default function App() {
                       <article
                         key={day.iso}
                         className={`week-day ${day.isToday ? "today" : ""}`}
+                        onClick={() => handleCalendarDateClick(day.iso)}
                       >
                         <p className="week-day-heading">
                           <span>{day.weekday}</span>
