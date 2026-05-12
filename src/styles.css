@@ -932,6 +932,89 @@ a {
   gap: 0.35rem;
 }
 
+/* Chord viewer */
+.chord-viewer {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+  background: rgba(3, 18, 17, 0.34);
+}
+
+.chord-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.chord-content {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  color: var(--ink);
+}
+
+.chord-content .gtab {
+  background: rgba(6, 9, 20, 0.7);
+  padding: 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.chord-content .gtab pre {
+  margin: 0;
+  white-space: pre;
+}
+
+.chord-content .chord {
+  color: var(--teal);
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.chord-diagrams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.chord-diagram-label {
+  font-size: 0.82rem;
+}
+
+.chord-transpose-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.chord-transpose-controls button {
+  padding: 0.25rem 0.55rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.chord-btn {
+  font-size: 0.78rem;
+  padding: 0.22rem 0.5rem;
+  color: var(--teal);
+  border-color: rgba(53, 208, 186, 0.35);
+}
+
+.chord-btn:hover {
+  border-color: var(--teal);
+  background: rgba(53, 208, 186, 0.12);
+}
+
 @media (max-width: 840px) {
   .page {
     margin: 1.5rem auto;
@@ -1010,6 +1093,10 @@ a {
 
   .song-row {
     gap: 0.35rem;
+  }
+
+  .chord-viewer-header {
+    flex-direction: column;
   }
 }
 
