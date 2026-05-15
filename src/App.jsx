@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 
 const REHEARSAL_STATUSES = ["planned", "draft", "confirmed", "completed"];
@@ -304,6 +304,17 @@ export default function App() {
   const [chordViewerId, setChordViewerId] = useState(null);
   const [chordModalSong, setChordModalSong] = useState(null);
   const [chordTransposeSemitones, setChordTransposeSemitones] = useState(0);
+  // Discover page
+  const [discoverStatus, setDiscoverStatus] = useState('idle'); // idle | recording | identifying | found | error
+  const [discoverResult, setDiscoverResult] = useState(null);
+  const [discoverQuery, setDiscoverQuery] = useState('');
+  const [discoverChords, setDiscoverChords] = useState([]);
+  const [discoverChordsLoading, setDiscoverChordsLoading] = useState(false);
+  const [discoverChordPreview, setDiscoverChordPreview] = useState(null);
+  const [discoverAddMember, setDiscoverAddMember] = useState('');
+  const [discoverAddFolder, setDiscoverAddFolder] = useState('covers');
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const canSubmit = useMemo(() => isSupabaseConfigured && !loading, [loading]);
 
@@ -758,8 +769,10 @@ export default function App() {
       const res = await fetch(`/api/ug-tab?id=${ugTabId}`);
       const json = await res.json();
       setChordPreview(json);
+      return json;
     } catch {
       setChordPreview(null);
+      return null;
     } finally {
       setChordPreviewLoading(false);
     }
@@ -857,6 +870,91 @@ export default function App() {
     } else {
       setNoticeMessage("Transposed version saved!");
       await loadChordCharts();
+    }
+  }
+
+  async function startListening() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setDiscoverStatus('identifying');
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const formData = new FormData();
+        formData.append('audio', blob, `clip.${ext}`);
+        try {
+          const res = await fetch('/api/detect-song', { method: 'POST', body: formData });
+          const json = await res.json();
+          if (json.title) {
+            setDiscoverResult(json);
+            setDiscoverStatus('found');
+            searchDiscoverChords(json.title, json.artist);
+          } else {
+            setDiscoverResult(null);
+            setDiscoverStatus('error');
+          }
+        } catch {
+          setDiscoverStatus('error');
+        }
+      };
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      setDiscoverStatus('recording');
+      setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+      }, 10000);
+    } catch {
+      setDiscoverStatus('error');
+    }
+  }
+
+  function stopListening() {
+    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+  }
+
+  async function searchDiscoverChords(title, artist) {
+    setDiscoverChordsLoading(true);
+    setDiscoverChords([]);
+    setDiscoverChordPreview(null);
+    const q = artist ? `${artist} ${title}` : title;
+    try {
+      const res = await fetch(`/api/ug-search?q=${encodeURIComponent(q)}&type=300&page=1`);
+      const json = await res.json();
+      setDiscoverChords(json.tabs || []);
+    } catch {
+      setDiscoverChords([]);
+    } finally {
+      setDiscoverChordsLoading(false);
+    }
+  }
+
+  async function addDiscoveredToSetlist(eventType, eventId) {
+    if (!discoverResult || !eventId) return;
+    await addSongToEventSetlist(eventType, eventId, {
+      song_title: discoverResult.title,
+      song_artist: discoverResult.artist || null
+    });
+  }
+
+  async function addDiscoveredToMember(memberId, folder) {
+    if (!discoverResult || !memberId) return;
+    const { error } = await supabase.from('member_song_lists').insert({
+      band_id: selectedBand.id,
+      member_id: memberId,
+      folder,
+      song_title: discoverResult.title,
+      song_artist: folder === 'originals' ? null : (discoverResult.artist || null)
+    });
+    if (error) {
+      setErrorMessage(error.message);
+    } else {
+      setNoticeMessage(`"${discoverResult.title}" added to ${folder}.`);
+      await loadData();
     }
   }
 
@@ -1525,6 +1623,13 @@ export default function App() {
             onClick={() => setActivePage("chords")}
           >
             Chords
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${activePage === "discover" ? "active" : ""}`}
+            onClick={() => setActivePage("discover")}
+          >
+            Discover
           </button>
 
           {isEventPage && (
@@ -3566,6 +3671,172 @@ export default function App() {
                   </div>
                 </div>
               </details>
+            </section>
+          )}
+
+          {activePage === "discover" && (
+            <section className="content panel">
+              <div className="panel-title-row">
+                <h2>Discover</h2>
+                <span className="tiny-label">Identify a song, then add it to your setlists or learned songs</span>
+              </div>
+
+              {/* Mic detection */}
+              <div className="form-card stack" style={{alignItems: "flex-start", gap: "0.6rem"}}>
+                <p className="sidebar-label">Listen &amp; identify</p>
+                <div style={{display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap"}}>
+                  {discoverStatus === 'idle' || discoverStatus === 'found' || discoverStatus === 'error' ? (
+                    <button
+                      type="button"
+                      onClick={() => { setDiscoverStatus('idle'); setDiscoverResult(null); setDiscoverChords([]); startListening(); }}
+                    >
+                      🎙 Listen (10 sec)
+                    </button>
+                  ) : discoverStatus === 'recording' ? (
+                    <button type="button" onClick={stopListening}>⏹ Stop recording</button>
+                  ) : (
+                    <button type="button" disabled>Identifying…</button>
+                  )}
+                  {discoverStatus === 'recording' && <span className="tiny-label" style={{color: "var(--teal)"}}>Listening… hold near audio source</span>}
+                  {discoverStatus === 'identifying' && <span className="tiny-label">Identifying song…</span>}
+                  {discoverStatus === 'error' && <span className="tiny-label" style={{color: "var(--rose)"}}>Could not identify — try again or search manually</span>}
+                </div>
+
+                <p className="sidebar-label" style={{marginTop: "0.4rem"}}>Or search manually</p>
+                <form
+                  className="split"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!discoverQuery.trim()) return;
+                    const parts = discoverQuery.split(' - ');
+                    const title = parts.length > 1 ? parts.slice(1).join(' - ') : discoverQuery;
+                    const artist = parts.length > 1 ? parts[0] : '';
+                    setDiscoverResult({ title, artist });
+                    setDiscoverStatus('found');
+                    searchDiscoverChords(title, artist);
+                  }}
+                >
+                  <input
+                    value={discoverQuery}
+                    onChange={(e) => setDiscoverQuery(e.target.value)}
+                    placeholder="Artist - Song title (or just song title)"
+                  />
+                  <button type="submit" disabled={!discoverQuery.trim()}>Search</button>
+                </form>
+              </div>
+
+              {/* Result card */}
+              {discoverStatus === 'found' && discoverResult && (
+                <div className="chord-viewer" style={{marginTop: "1rem"}}>
+                  <div className="chord-viewer-header">
+                    <div>
+                      <strong style={{fontSize: "1.05rem"}}>{discoverResult.title}</strong>
+                      {discoverResult.artist && <span style={{color: "var(--muted)", marginLeft: "0.5rem"}}>{discoverResult.artist}</span>}
+                      {discoverResult.album && <span className="status-pill" style={{marginLeft: "0.5rem"}}>{discoverResult.album}</span>}
+                      {discoverResult.spotify_url && (
+                        <a href={discoverResult.spotify_url} target="_blank" rel="noreferrer" style={{marginLeft: "0.5rem", fontSize: "0.82rem"}}>Spotify</a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Add to setlist */}
+                  <div style={{display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.6rem"}}>
+                    {rehearsals.length > 0 && (
+                      <select
+                        defaultValue=""
+                        onChange={(e) => { if (e.target.value) { addDiscoveredToSetlist('rehearsal', e.target.value); e.target.value = ''; } }}
+                      >
+                        <option value="">+ Add to rehearsal…</option>
+                        {rehearsals.map((r) => (
+                          <option key={r.id} value={r.id}>{r.title}{r.rehearsal_date ? ` (${formatDate(r.rehearsal_date)})` : ''}</option>
+                        ))}
+                      </select>
+                    )}
+                    {performances.length > 0 && (
+                      <select
+                        defaultValue=""
+                        onChange={(e) => { if (e.target.value) { addDiscoveredToSetlist('performance', e.target.value); e.target.value = ''; } }}
+                      >
+                        <option value="">+ Add to performance…</option>
+                        {performances.map((p) => (
+                          <option key={p.id} value={p.id}>{p.title}{p.performance_date ? ` (${formatDate(p.performance_date)})` : ''}</option>
+                        ))}
+                      </select>
+                    )}
+                    {members.length > 0 && (
+                      <div style={{display: "flex", gap: "0.3rem", alignItems: "center"}}>
+                        <select value={discoverAddMember} onChange={(e) => setDiscoverAddMember(e.target.value)}>
+                          <option value="">Pick member…</option>
+                          {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                        <select value={discoverAddFolder} onChange={(e) => setDiscoverAddFolder(e.target.value)}>
+                          <option value="covers">Covers</option>
+                          <option value="songs_im_learning">Learning</option>
+                          <option value="originals">Originals</option>
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!discoverAddMember}
+                          onClick={() => { addDiscoveredToMember(discoverAddMember, discoverAddFolder); setDiscoverAddMember(''); }}
+                        >
+                          + Add to member
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chord results */}
+                  <div style={{marginTop: "0.8rem"}}>
+                    <p className="sidebar-label">Chord charts on Ultimate Guitar</p>
+                    {discoverChordsLoading && <p className="empty">Searching UG…</p>}
+                    {!discoverChordsLoading && discoverChords.length === 0 && (
+                      <p className="empty">No chord charts found.</p>
+                    )}
+                    {discoverChords.length > 0 && (
+                      <div className="file-list" style={{maxHeight: "45vh", overflowY: "auto"}}>
+                        {discoverChords.map((tab) => (
+                          <article className="file-row" key={tab.id}>
+                            <div className="file-main">
+                              <p className="item-title">{tab.song_name}</p>
+                              <p className="item-date">
+                                {tab.artist_name} · {tab.type_name || "Chords"} · v{tab.version}
+                                {tab.tonality_name ? ` · Key ${tab.tonality_name}` : ""}
+                                {tab.rating ? ` · ★ ${Number(tab.rating).toFixed(1)}` : ""}
+                              </p>
+                            </div>
+                            <div className="file-actions">
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={discoverChordsLoading}
+                                onClick={() => discoverChordPreview?.id === tab.id ? setDiscoverChordPreview(null) : loadChordTab(tab.id).then(setDiscoverChordPreview)}
+                              >
+                                {discoverChordPreview?.id === tab.id ? "Close" : "Preview"}
+                              </button>
+                              <button type="button" onClick={() => saveChordChart(tab)}>
+                                Save to band
+                              </button>
+                            </div>
+                            {discoverChordPreview?.id === tab.id && (
+                              <div style={{gridColumn: "1 / -1"}}>
+                                <ChordViewer
+                                  chart={{
+                                    ...discoverChordPreview,
+                                    url_web: discoverChordPreview.tab_url,
+                                    applicature: discoverChordPreview.applicature ? JSON.stringify(discoverChordPreview.applicature) : null
+                                  }}
+                                  onClose={() => setDiscoverChordPreview(null)}
+                                  onSave={() => saveChordChart(discoverChordPreview)}
+                                />
+                              </div>
+                            )}
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </section>
