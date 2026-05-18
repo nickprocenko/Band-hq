@@ -255,8 +255,15 @@ function DiscoverViewer({
   const [semitones, setSemitones] = useState(0);
   const [manualQuery, setManualQuery] = useState('');
   const [showChordList, setShowChordList] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editArtist, setEditArtist] = useState('');
   const chordScrollRef = useRef(null);
   const scrollPauseTimerRef = useRef(null);
+
+  useEffect(() => {
+    setEditTitle(result?.title || '');
+    setEditArtist(result?.artist || '');
+  }, [result?.title, result?.artist]);
 
   // Autoscroll
   useEffect(() => {
@@ -298,12 +305,25 @@ function DiscoverViewer({
         {/* Header */}
         <header className="discover-header">
           <button type="button" className="ghost" onClick={onBack}>← Back</button>
-          <div style={{ textAlign: 'center', flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             {result ? (
-              <>
-                <strong style={{ fontSize: '1.05rem' }}>{result.title}</strong>
-                {result.artist && <span style={{ color: 'var(--muted)', marginLeft: '0.5rem' }}>{result.artist}</span>}
-              </>
+              <form
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}
+                onSubmit={e => { e.preventDefault(); if (editTitle) onSearch(editTitle, editArtist); }}
+              >
+                <input
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  style={{ fontWeight: 600, fontSize: '1.05rem', background: 'transparent', border: 'none', color: 'inherit', padding: 0, width: '100%', outline: 'none' }}
+                />
+                <input
+                  value={editArtist}
+                  onChange={e => setEditArtist(e.target.value)}
+                  placeholder="Artist"
+                  style={{ fontSize: '0.85rem', background: 'transparent', border: 'none', color: 'var(--muted)', padding: 0, width: '100%', outline: 'none' }}
+                />
+                <button type="submit" style={{ display: 'none' }} />
+              </form>
             ) : (
               <span style={{ color: 'var(--muted)' }}>Discover</span>
             )}
@@ -318,12 +338,12 @@ function DiscoverViewer({
           </button>
         </header>
 
+        {/* Album artwork */}
+        {artwork && <img src={artwork} alt="" className="discover-artwork" />}
+
         {/* Song meta */}
         {result && (
           <div className="discover-song-meta">
-            {artwork && (
-              <img src={artwork} alt="" style={{ width: 72, height: 72, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-            )}
             <div>
               {result.album && <p style={{ margin: 0, fontWeight: 600 }}>{result.album}</p>}
               {result.release_date && <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.82rem' }}>{result.release_date.slice(0, 4)}</p>}
