@@ -568,6 +568,7 @@ export default function App() {
   const [discoverScrollPaused, setDiscoverScrollPaused] = useState(false);
   const discoverContinuousRef = useRef(false);
   const continuousTimerRef = useRef(null);
+  const lastDetectedRef = useRef(null);
 
   const canSubmit = useMemo(() => isSupabaseConfigured && !loading, [loading]);
 
@@ -1145,11 +1146,16 @@ export default function App() {
           const res = await fetch('/api/detect-song', { method: 'POST', body: formData });
           const json = await res.json();
           if (json.title) {
+            const prev = lastDetectedRef.current;
+            const isSameSong = prev && prev.title === json.title && prev.artist === json.artist;
+            lastDetectedRef.current = { title: json.title, artist: json.artist };
             setDiscoverResult(json);
             setDiscoverArtwork(json.artwork_url || null);
-            setDiscoverActiveChart(null);
             setDiscoverStatus('found');
-            searchDiscoverChords(json.title, json.artist);
+            if (!isSameSong) {
+              setDiscoverActiveChart(null);
+              searchDiscoverChords(json.title, json.artist);
+            }
           } else {
             setDiscoverResult(null);
             setDiscoverStatus('error');
@@ -1166,7 +1172,7 @@ export default function App() {
       setDiscoverStatus('recording');
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
-      }, 5000);
+      }, 8000);
     } catch {
       setDiscoverStatus('error');
     }
