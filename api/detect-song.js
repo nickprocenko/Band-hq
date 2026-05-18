@@ -38,17 +38,31 @@ function convertToMp3(inputBuffer) {
   });
 }
 
+const DALVIK_UAS = [
+  'Dalvik/2.1.0 (Linux; U; Android 9; SM-G960F Build/PPR1.180610.011)',
+  'Dalvik/2.1.0 (Linux; U; Android 10; SM-G973F Build/QP1A.190711.020)',
+  'Dalvik/2.1.0 (Linux; U; Android 11; Pixel 4 Build/RQ3A.210805.001)',
+  'Dalvik/2.1.0 (Linux; U; Android 12; SM-S908B Build/SP1A.210812.016)',
+];
+
 async function queryShazam(sig) {
-  const url = `https://amp.shazam.com/discovery/v5/en-US/GB/android/-/tag/${randomUUID()}/${randomUUID()}/`;
+  const ua = DALVIK_UAS[Math.floor(Math.random() * DALVIK_UAS.length)];
+  const url =
+    `https://amp.shazam.com/discovery/v5/en-US/GB/iphone/-/tag/${randomUUID()}/${randomUUID()}` +
+    `?sync=true&webv3=true&sampling=true&connected=&shazamapiversion=v3&sharehub=true&hubv5minorversion=v5.1&hidelb=true&video=v3`;
   const r = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept-Language': 'en',
-      'User-Agent': 'Dalvik/2.1.0',
+      'Accept': '*/*',
+      'Accept-Language': 'en-US',
+      'Accept-Encoding': 'gzip, deflate',
+      'X-Shazam-Platform': 'IPHONE',
+      'X-Shazam-AppVersion': '14.1.0',
+      'User-Agent': ua,
     },
     body: JSON.stringify({
-      timezone: 'Europe/London',
+      timezone: 'Europe/Moscow',
       signature: { uri: sig.uri, samplems: sig.samplems },
       timestamp: Date.now(),
       context: {},
