@@ -1172,7 +1172,7 @@ export default function App() {
       setDiscoverStatus('recording');
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
-      }, 5000);
+      }, 8000);
     } catch {
       setDiscoverStatus('error');
     }

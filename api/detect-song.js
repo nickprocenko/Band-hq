@@ -1,6 +1,8 @@
 import { recognizeBytes } from 'shazamio-core';
 import Busboy from 'busboy';
 import { randomUUID } from 'crypto';
+import ffmpegStatic from 'ffmpeg-static';
+import { spawn } from 'child_process';
 
 export const config = { api: { bodyParser: false } };
 
@@ -16,6 +18,23 @@ function extractAudio(req) {
     bb.on('finish', () => resolve(buf));
     bb.on('error', reject);
     req.pipe(bb);
+  });
+}
+
+// shazamio-core doesn't support WebM/Opus (what MediaRecorder sends); convert to MP3 first
+function convertToMp3(inputBuffer) {
+  return new Promise((resolve, reject) => {
+    const ff = spawn(ffmpegStatic, [
+      '-i', 'pipe:0',
+      '-acodec', 'libmp3lame', '-ar', '44100', '-ac', '1', '-q:a', '5',
+      '-f', 'mp3', 'pipe:1',
+    ]);
+    const chunks = [];
+    ff.stdin.end(inputBuffer);
+    ff.stdout.on('data', c => chunks.push(c));
+    ff.stdout.on('end', () => resolve(Buffer.concat(chunks)));
+    ff.stderr.on('data', () => {});
+    ff.on('error', reject);
   });
 }
 
@@ -53,9 +72,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'no_audio' });
   }
 
+  let mp3Buffer;
+  try {
+    mp3Buffer = await convertToMp3(audioBuffer);
+  } catch (err) {
+    return res.status(422).json({ error: 'conversion_failed', detail: String(err) });
+  }
+
   let signatures;
   try {
-    signatures = recognizeBytes(new Uint8Array(audioBuffer));
+    signatures = recognizeBytes(new Uint8Array(mp3Buffer));
   } catch (err) {
     return res.status(422).json({ error: 'fingerprint_failed', detail: String(err) });
   }
