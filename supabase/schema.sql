@@ -47,7 +47,7 @@ create table if not exists public.other_events (
 
 create table if not exists public.band_members (
   id uuid primary key default gen_random_uuid(),
-  name text not null unique,
+  name text not null,
   created_at timestamptz not null default now()
 );
 
@@ -298,3 +298,7 @@ alter table public.rehearsal_songs
 
 alter table public.member_song_lists
   add column if not exists chord_chart_id uuid references public.chord_charts(id) on delete set null;
+
+-- Fix band_members: replace global unique(name) with per-band unique(band_id, name)
+alter table public.band_members drop constraint if exists band_members_name_key;
+alter table public.band_members add constraint if not exists band_members_band_id_name_key unique (band_id, name);
