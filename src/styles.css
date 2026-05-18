@@ -1128,6 +1128,16 @@ a {
   filter: none;
 }
 
+.discover-artwork {
+  width: 180px;
+  height: 180px;
+  border-radius: 12px;
+  object-fit: cover;
+  align-self: center;
+  flex-shrink: 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
 .discover-overlay {
   position: relative;
   z-index: 1;

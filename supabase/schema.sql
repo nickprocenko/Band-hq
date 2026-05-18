@@ -301,4 +301,8 @@ alter table public.member_song_lists
 
 -- Fix band_members: replace global unique(name) with per-band unique(band_id, name)
 alter table public.band_members drop constraint if exists band_members_name_key;
-alter table public.band_members add constraint if not exists band_members_band_id_name_key unique (band_id, name);
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'band_members_band_id_name_key') then
+    alter table public.band_members add constraint band_members_band_id_name_key unique (band_id, name);
+  end if;
+end $$;
