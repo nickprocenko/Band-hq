@@ -38,12 +38,17 @@ export default async function handler(req, res) {
 
   if (data.status === 'success' && data.result) {
     const r = data.result;
+    const artworkUrl =
+      r.spotify?.album?.images?.[0]?.url ||
+      r.apple_music?.artwork?.url?.replace('{w}x{h}bb', '600x600bb') ||
+      null;
     return res.json({
       title: r.title,
       artist: r.artist,
       album: r.album || null,
       release_date: r.release_date || null,
       spotify_url: r.spotify?.external_urls?.spotify || null,
+      artwork_url: artworkUrl,
     });
   }
 
