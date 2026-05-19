@@ -117,12 +117,29 @@ export default async function handler(req, res) {
 
   if (!track) return res.json({ error: 'not_found' });
 
+  function cleanTitle(raw) {
+    return raw
+      .replace(/\s*\(radio edit\)/gi, '')
+      .replace(/\s*\(remastered[^)]*\)/gi, '')
+      .replace(/\s*\(live[^)]*\)/gi, '')
+      .replace(/\s*\(acoustic[^)]*\)/gi, '')
+      .replace(/\s*\(feat\.[^)]*\)/gi, '')
+      .replace(/\s*\(ft\.[^)]*\)/gi, '')
+      .replace(/\s*-\s*remastered\s*\d*/gi, '')
+      .replace(/\s*\(single version\)/gi, '')
+      .replace(/\s*\(album version\)/gi, '')
+      .trim();
+  }
+
   const songMeta = track.sections?.find(s => s.type === 'SONG')?.metadata || [];
   const artworkUrl = track.images?.coverarthq || track.images?.coverart || null;
-  const spotifyUri = track.hub?.providers?.find(p => p.type === 'SPOTIFY')?.actions?.[0]?.uri || null;
+  const spotifyActions = track.hub?.providers?.find(p => p.type === 'SPOTIFY')?.actions || [];
+  const spotifyUri = spotifyActions.find(a => a.uri?.startsWith('spotify:track:'))?.uri
+    || spotifyActions.find(a => a.uri?.startsWith('https://open.spotify.com/track/'))?.uri
+    || null;
 
   return res.json({
-    title: track.title,
+    title: cleanTitle(track.title),
     artist: track.subtitle,
     album: songMeta.find(m => m.title === 'Album')?.text || null,
     release_date: songMeta.find(m => m.title === 'Released')?.text || null,
