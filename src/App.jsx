@@ -243,7 +243,7 @@ function ChordViewer({ chart, onClose, onSave, onSaveTransposed }) {
 }
 
 function DiscoverViewer({
-  result, artwork, chart, status, continuous, onContinuousToggle,
+  result, artwork, chart, status, errorMsg, continuous, onContinuousToggle,
   scrollSpeed, onScrollSpeedChange, scrollPaused, onScrollPausedChange,
   members, rehearsals, performances,
   onBack, onAddToSetlist, onAddToMember, onSearch,
@@ -443,7 +443,7 @@ function DiscoverViewer({
               <button type="button" onClick={onStartListening}>🎙 Listen (5s)</button>
             )}
             {status === 'recording' && <span className="discover-status">Listening…</span>}
-            {status === 'error' && <span style={{ color: 'var(--rose)', fontSize: '0.85rem' }}>Not found</span>}
+            {status === 'error' && <span style={{ color: 'var(--rose)', fontSize: '0.85rem' }}>{errorMsg || 'Not found'}</span>}
           </div>
 
           {/* Manual search */}
@@ -572,6 +572,7 @@ export default function App() {
   const [chordTransposeSemitones, setChordTransposeSemitones] = useState(0);
   // Discover page
   const [discoverStatus, setDiscoverStatus] = useState('idle'); // idle | recording | identifying | found | error
+  const [discoverError, setDiscoverError] = useState(null);
   const [discoverResult, setDiscoverResult] = useState(null);
   const [discoverQuery, setDiscoverQuery] = useState('');
   const [discoverChords, setDiscoverChords] = useState([]);
@@ -1149,6 +1150,7 @@ export default function App() {
 
   async function startListening() {
     if (discoverStatus === 'recording' || discoverStatus === 'identifying') return;
+    setDiscoverError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -1177,10 +1179,20 @@ export default function App() {
               searchDiscoverChords(json.title, json.artist);
             }
           } else {
+            const labels = {
+              no_audio: 'No audio captured',
+              parse_failed: 'Upload failed',
+              conversion_failed: 'Audio conversion failed',
+              fingerprint_failed: 'Fingerprinting failed',
+              shazam_unavailable: 'Shazam API unavailable',
+              not_found: 'Song not found',
+            };
             setDiscoverResult(null);
+            setDiscoverError(labels[json.error] || `Not found (${json.error || 'unknown'})`);
             setDiscoverStatus('error');
           }
-        } catch {
+        } catch (e) {
+          setDiscoverError(navigator.onLine === false ? 'No internet connection' : 'Request failed — check Vercel logs');
           setDiscoverStatus('error');
         }
         if (discoverContinuousRef.current) {
@@ -1193,7 +1205,8 @@ export default function App() {
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
       }, 8000);
-    } catch {
+    } catch (e) {
+      setDiscoverError(e?.name === 'NotAllowedError' ? 'Microphone access denied' : 'Could not start recording');
       setDiscoverStatus('error');
     }
   }
@@ -3987,6 +4000,7 @@ export default function App() {
           artwork={discoverArtwork}
           chart={discoverActiveChart}
           status={discoverStatus}
+          errorMsg={discoverError}
           continuous={discoverContinuous}
           onContinuousToggle={() => {
             const next = !discoverContinuous;

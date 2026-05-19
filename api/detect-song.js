@@ -69,6 +69,10 @@ async function queryShazam(sig) {
       geolocation: {},
     }),
   });
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`Shazam ${r.status}: ${text.slice(0, 120)}`);
+  }
   return r.json();
 }
 
@@ -105,17 +109,23 @@ export default async function handler(req, res) {
   }
 
   let track = null;
+  let shazamError = null;
   for (const sig of signatures) {
     try {
       if (!track) {
         const data = await queryShazam(sig);
         if (data?.matches?.[0] && data?.track) track = data.track;
       }
-    } catch {}
+    } catch (e) {
+      shazamError = String(e);
+    }
     try { sig.free(); } catch {}
   }
 
-  if (!track) return res.json({ error: 'not_found' });
+  if (!track) {
+    if (shazamError) return res.json({ error: 'shazam_unavailable', detail: shazamError });
+    return res.json({ error: 'not_found' });
+  }
 
   function cleanTitle(raw) {
     return raw
