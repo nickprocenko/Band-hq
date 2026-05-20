@@ -245,6 +245,7 @@ function ChordViewer({ chart, onClose, onSave, onSaveTransposed }) {
 function DiscoverViewer({
   result, artwork, chart, status, errorMsg, continuous, onContinuousToggle,
   scrollSpeed, onScrollSpeedChange, scrollPaused, onScrollPausedChange,
+  tabType, onTabTypeChange,
   members, rehearsals, performances,
   onBack, onAddToSetlist, onAddToMember, onSearch,
   discoverChords, discoverChordsLoading, onSelectChart,
@@ -371,6 +372,17 @@ function DiscoverViewer({
                     {showChordList ? 'Hide charts' : `${discoverChords.length} charts ▾`}
                   </button>
                 )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <span className="tiny-label">Instrument</span>
+                  {TAB_TYPES.map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`ghost chord-btn${tabType === id ? ' active-toggle' : ''}`}
+                      onClick={() => onTabTypeChange(id)}
+                    >{label}</button>
+                  ))}
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginLeft: 'auto' }}>
                   <span className="tiny-label">Scroll</span>
                   {[['Off', 0], ['Slow', 12], ['Med', 22], ['Fast', 40]].map(([label, speed]) => (
@@ -508,6 +520,14 @@ function DiscoverViewer({
   );
 }
 
+const TAB_TYPES = [
+  { id: '300', label: 'Chords' },
+  { id: '200', label: 'Guitar Tab' },
+  { id: '400', label: 'Bass Tab' },
+  { id: '700', label: 'Drums' },
+  { id: '800', label: 'Ukulele' },
+];
+
 export default function App() {
   const [bands, setBands] = useState([]);
   const [selectedBand, setSelectedBand] = useState(null);
@@ -561,6 +581,7 @@ export default function App() {
   const [eventFormType, setEventFormType] = useState("rehearsal");
   const [calendarDatePopup, setCalendarDatePopup] = useState(null);
   // Chord search & library
+  const [tabType, setTabType] = useState(() => localStorage.getItem('ug_tab_type') || '300');
   const [chordSearchQuery, setChordSearchQuery] = useState('');
   const [chordSearchResults, setChordSearchResults] = useState([]);
   const [chordSearchLoading, setChordSearchLoading] = useState(false);
@@ -1027,7 +1048,7 @@ export default function App() {
     setChordSearchLoading(true);
     setChordSearchResults([]);
     try {
-      const res = await fetch(`/api/ug-search?q=${encodeURIComponent(chordSearchQuery)}&type=300&page=1`);
+      const res = await fetch(`/api/ug-search?q=${encodeURIComponent(chordSearchQuery)}&type=${tabType}&page=1`);
       const json = await res.json();
       setChordSearchResults(json.tabs || []);
     } catch {
@@ -1221,7 +1242,7 @@ export default function App() {
     setDiscoverChordPreview(null);
     const q = artist ? `${artist} ${title}` : title;
     try {
-      const res = await fetch(`/api/ug-search?q=${encodeURIComponent(q)}&type=300&page=1`);
+      const res = await fetch(`/api/ug-search?q=${encodeURIComponent(q)}&type=${tabType}&page=1`);
       const json = await res.json();
       setDiscoverChords(json.tabs || []);
       if (json.tabs?.length > 0) {
@@ -1266,6 +1287,7 @@ export default function App() {
   }
 
   useEffect(() => { discoverContinuousRef.current = discoverContinuous; }, [discoverContinuous]);
+  useEffect(() => { localStorage.setItem('ug_tab_type', tabType); }, [tabType]);
 
   useEffect(() => {
     if (activePage !== 'discover') {
@@ -3878,6 +3900,16 @@ export default function App() {
               <div className="panel-title-row">
                 <h2>Chord Search</h2>
               </div>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                {TAB_TYPES.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`ghost chord-btn${tabType === id ? ' active-toggle' : ''}`}
+                    onClick={() => setTabType(id)}
+                  >{label}</button>
+                ))}
+              </div>
               <form className="stack form-card" onSubmit={searchChords}>
                 <div className="split">
                   <input
@@ -4001,6 +4033,8 @@ export default function App() {
           chart={discoverActiveChart}
           status={discoverStatus}
           errorMsg={discoverError}
+          tabType={tabType}
+          onTabTypeChange={setTabType}
           continuous={discoverContinuous}
           onContinuousToggle={() => {
             const next = !discoverContinuous;
@@ -4075,7 +4109,7 @@ export default function App() {
                 setChordSearchLoading(true);
                 setChordSearchResults([]);
                 try {
-                  const res = await fetch(`/api/ug-search?q=${encodeURIComponent(q)}&type=300&page=1`);
+                  const res = await fetch(`/api/ug-search?q=${encodeURIComponent(q)}&type=${tabType}&page=1`);
                   const json = await res.json();
                   setChordSearchResults(json.tabs || []);
                 } catch {
