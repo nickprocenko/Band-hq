@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 
 const REHEARSAL_STATUSES = ["planned", "draft", "confirmed", "completed"];
@@ -503,6 +503,446 @@ function DiscoverViewer({
             </>
           )}
         </footer>
+      </div>
+    </div>
+  );
+}
+
+// Freez'Careeb setlist — chord learning playlist (from the printed setlist sheet)
+const FREEZ_CAREEB_PLAYLIST = {
+  name: "Freez'Careeb",
+  sets: [
+    {
+      name: "Set One",
+      songs: [
+        { title: "Escape (The Pina Colada Song)", artist: "Rupert Holmes", singer: "Tiny" },
+        { title: "Three Little Birds", artist: "Bob Marley", singer: "Tiny" },
+        { title: "Night Nurse", artist: "Gregory Isaacs", singer: "Derek" },
+        { title: "Santeria", artist: "Sublime", singer: "Derek" },
+        { title: "The Weight", artist: "The Band", singer: "Derek" },
+        { title: "Sweet Home Alabama", artist: "Lynyrd Skynyrd", singer: "Derek" },
+        { title: "No Woman No Cry", artist: "Bob Marley", singer: "Tiny" },
+        { title: "I Shot The Sheriff", artist: "Bob Marley", singer: "Tiny" },
+        { title: "Margaritaville", artist: "Jimmy Buffett", singer: "Tiny" },
+        { title: "Need A Favor", artist: "Jelly Roll", singer: "Tiny" }
+      ]
+    },
+    {
+      name: "Set Two",
+      songs: [
+        { title: "Brown Eyed Girl", artist: "Van Morrison", singer: "Tiny" },
+        { title: "Waiting In Vain", artist: "Bob Marley", singer: "Tiny" },
+        { title: "Tennessee Whiskey", artist: "Chris Stapleton", singer: "Tiny" },
+        { title: "Wagon Wheel", artist: "Old Crow Medicine Show", singer: "Derek" },
+        { title: "Let Me Know", artist: "J Boog", singer: "Tiny" },
+        { title: "One Drop", artist: "Bob Marley", singer: "Tiny" },
+        { title: "Can't You See", artist: "The Marshall Tucker Band", singer: "Derek" },
+        { title: "Simple Man", artist: "Lynyrd Skynyrd", singer: "Derek" },
+        { title: "Toes", artist: "Zac Brown Band", singer: "Derek" },
+        { title: "All Summer Long", artist: "Kid Rock", singer: "Tiny" }
+      ]
+    }
+  ]
+};
+
+function songKey(song) {
+  return `${song.artist} - ${song.title}`;
+}
+
+function LearnViewer({ playlist, onBack, onSaveChart }) {
+  const songs = useMemo(
+    () => playlist.sets.flatMap((set) => set.songs.map((song) => ({ ...song, setName: set.name }))),
+    [playlist]
+  );
+  const storageKey = `learn_progress_${playlist.name}`;
+  const [index, setIndex] = useState(null);
+  const [overrides, setOverrides] = useState({});
+  const [learned, setLearned] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { return {}; }
+  });
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [showPlaylist, setShowPlaylist] = useState(true);
+  const [videoId, setVideoId] = useState(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [charts, setCharts] = useState([]);
+  const [chart, setChart] = useState(null);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [showChartList, setShowChartList] = useState(false);
+  const [semitones, setSemitones] = useState(0);
+  const [scrollSpeed, setScrollSpeed] = useState(0);
+  const [scrollPaused, setScrollPaused] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editArtist, setEditArtist] = useState("");
+  const chordScrollRef = useRef(null);
+  const scrollPauseTimerRef = useRef(null);
+  const requestRef = useRef(0);
+  const iframeRef = useRef(null);
+  const indexRef = useRef(index);
+  const autoAdvanceRef = useRef(autoAdvance);
+
+  useEffect(() => { indexRef.current = index; }, [index]);
+  useEffect(() => { autoAdvanceRef.current = autoAdvance; }, [autoAdvance]);
+
+  const current = index === null
+    ? null
+    : { ...songs[index], ...(overrides[songKey(songs[index])] || {}) };
+  const learnedCount = songs.filter((song) => learned[songKey(song)]).length;
+
+  // Load YouTube video + chord chart whenever the active song changes
+  useEffect(() => {
+    if (!current) return;
+    const req = ++requestRef.current;
+    setSemitones(0);
+    setChart(null);
+    setCharts([]);
+    setShowChartList(false);
+    setVideoId(null);
+    setVideoLoading(true);
+    setChartLoading(true);
+    setEditTitle(current.title);
+    setEditArtist(current.artist);
+
+    const q = `${current.artist} ${current.title}`.trim();
+
+    fetch(`/api/yt-search?q=${encodeURIComponent(q)}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (requestRef.current !== req) return;
+        setVideoId(json.videos?.[0]?.id || null);
+      })
+      .catch(() => { if (requestRef.current === req) setVideoId(null); })
+      .finally(() => { if (requestRef.current === req) setVideoLoading(false); });
+
+    fetch(`/api/ug-search?q=${encodeURIComponent(q)}&type=300&page=1`)
+      .then((res) => res.json())
+      .then(async (json) => {
+        if (requestRef.current !== req) return;
+        const tabs = (json.tabs || []).slice().sort((a, b) => (b.votes || 0) - (a.votes || 0));
+        setCharts(tabs);
+        if (!tabs.length) {
+          setChartLoading(false);
+          return;
+        }
+        const tabRes = await fetch(`/api/ug-tab?id=${tabs[0].id}`);
+        const fullTab = await tabRes.json();
+        if (requestRef.current !== req) return;
+        setChart({
+          ...fullTab,
+          url_web: fullTab.tab_url,
+          applicature: fullTab.applicature ? JSON.stringify(fullTab.applicature) : null
+        });
+        setChartLoading(false);
+      })
+      .catch(() => {
+        if (requestRef.current === req) {
+          setCharts([]);
+          setChartLoading(false);
+        }
+      });
+  }, [index, current?.title, current?.artist]);
+
+  // Autoscroll for the chord chart
+  useEffect(() => {
+    const el = chordScrollRef.current;
+    if (!el || scrollPaused || scrollSpeed === 0) return;
+    let last = null;
+    let handle;
+    const tick = (ts) => {
+      if (last !== null) el.scrollTop += (scrollSpeed / 60) * ((ts - last) / 16.67);
+      last = ts;
+      handle = requestAnimationFrame(tick);
+    };
+    handle = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(handle);
+  }, [scrollSpeed, scrollPaused, chart]);
+
+  useEffect(() => {
+    if (chordScrollRef.current) chordScrollRef.current.scrollTop = 0;
+  }, [chart?.id]);
+
+  useEffect(() => () => clearTimeout(scrollPauseTimerRef.current), []);
+
+  // Auto-advance to the next song when the YouTube video ends
+  useEffect(() => {
+    function onMessage(event) {
+      if (event.origin !== "https://www.youtube.com") return;
+      let data;
+      try { data = JSON.parse(event.data); } catch { return; }
+      if (data.event === "onStateChange" && data.info === 0 && autoAdvanceRef.current) {
+        const next = indexRef.current === null ? null : indexRef.current + 1;
+        if (next !== null && next < songs.length) setIndex(next);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [songs.length]);
+
+  function handleIframeLoad() {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: "listening", id: "learn-player" }),
+        "https://www.youtube.com"
+      );
+    } catch {}
+  }
+
+  function handleManualScroll() {
+    setScrollPaused(true);
+    clearTimeout(scrollPauseTimerRef.current);
+    scrollPauseTimerRef.current = setTimeout(() => setScrollPaused(false), 3000);
+  }
+
+  function toggleLearned(key) {
+    setLearned((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key];
+      else next[key] = true;
+      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }
+
+  async function selectChart(tab) {
+    setShowChartList(false);
+    setSemitones(0);
+    setChartLoading(true);
+    try {
+      const res = await fetch(`/api/ug-tab?id=${tab.id}`);
+      const fullTab = await res.json();
+      setChart({
+        ...fullTab,
+        url_web: fullTab.tab_url,
+        applicature: fullTab.applicature ? JSON.stringify(fullTab.applicature) : null
+      });
+    } catch {}
+    setChartLoading(false);
+  }
+
+  function applyOverride(event) {
+    event.preventDefault();
+    if (index === null || !editTitle.trim()) return;
+    setOverrides((prev) => ({
+      ...prev,
+      [songKey(songs[index])]: { title: editTitle.trim(), artist: editArtist.trim() }
+    }));
+  }
+
+  const keyLabel = chart?.tonality_name ? transposeNoteName(chart.tonality_name, semitones) : null;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, overflow: "hidden", height: "100dvh" }}>
+      <div className="discover-bg" />
+      <div className="discover-overlay">
+        <header className="discover-header">
+          <button type="button" className="ghost" onClick={onBack}>← Back</button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <strong>{playlist.name}</strong>
+            <span style={{ color: "var(--muted)", fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+              Chord learning playlist · {learnedCount}/{songs.length} learned
+            </span>
+          </div>
+          <button
+            type="button"
+            className={autoAdvance ? "" : "ghost"}
+            onClick={() => setAutoAdvance((v) => !v)}
+            title="Play the next song automatically when the video ends"
+          >
+            ⏭ Auto-next {autoAdvance ? "on" : "off"}
+          </button>
+          <button type="button" className="ghost" onClick={() => setShowPlaylist((v) => !v)}>
+            {showPlaylist ? "Hide setlist" : "Show setlist"}
+          </button>
+        </header>
+
+        <div className={`learn-layout${showPlaylist ? "" : " no-playlist"}`}>
+          {showPlaylist && (
+            <aside className="learn-playlist">
+              {songs.map((song, i) => {
+                const key = songKey(song);
+                return (
+                  <Fragment key={key}>
+                    {(i === 0 || songs[i - 1].setName !== song.setName) && (
+                      <p className="learn-set-label">{song.setName}</p>
+                    )}
+                    <div
+                      className={`learn-song-row${i === index ? " active" : ""}`}
+                      onClick={() => setIndex(i)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIndex(i); }}
+                    >
+                      <span className="learn-song-num">{i === index ? "▶" : i + 1}</span>
+                      <span className="learn-song-info">
+                        <span className="learn-song-title">{song.title}</span>
+                        <span className="learn-song-artist">{song.artist}</span>
+                      </span>
+                      <span className={`learn-singer ${song.singer.toLowerCase()}`}>{song.singer}</span>
+                      <span
+                        className={`learn-check${learned[key] ? " done" : ""}`}
+                        onClick={(e) => { e.stopPropagation(); toggleLearned(key); }}
+                        title={learned[key] ? "Learned — click to unmark" : "Mark as learned"}
+                      >
+                        ✓
+                      </span>
+                    </div>
+                  </Fragment>
+                );
+              })}
+            </aside>
+          )}
+
+          <div className="learn-main">
+            {current ? (
+              <>
+                <div className="learn-video">
+                  {videoId ? (
+                    <iframe
+                      ref={iframeRef}
+                      key={videoId}
+                      src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                      title={`${current.artist} - ${current.title}`}
+                      allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                      allowFullScreen
+                      onLoad={handleIframeLoad}
+                    />
+                  ) : (
+                    <div className="learn-video-placeholder">
+                      {videoLoading ? (
+                        <p className="empty">Finding "{current.title}" on YouTube…</p>
+                      ) : (
+                        <p className="empty">
+                          Video not found.{" "}
+                          <a
+                            href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${current.artist} ${current.title}`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Search on YouTube
+                          </a>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="learn-controls">
+                  <button type="button" className="ghost" disabled={index === 0} onClick={() => setIndex(index - 1)}>
+                    ⏮ Prev
+                  </button>
+                  <form className="learn-title-form" onSubmit={applyOverride}>
+                    <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Song title" />
+                    <input value={editArtist} onChange={(e) => setEditArtist(e.target.value)} placeholder="Artist" />
+                    <button type="submit" className="ghost">Update</button>
+                  </form>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={index === songs.length - 1}
+                    onClick={() => setIndex(index + 1)}
+                  >
+                    Next ⏭
+                  </button>
+                </div>
+
+                <div className="discover-chord-panel">
+                  {chart ? (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", flexShrink: 0 }}>
+                        <div className="chord-transpose-controls">
+                          <button type="button" className="ghost" onClick={() => setSemitones((s) => s - 1)}>−</button>
+                          <span className="tiny-label" style={{ minWidth: "3.5rem", textAlign: "center" }}>
+                            {semitones === 0 ? "Original" : `${semitones > 0 ? "+" : ""}${semitones} st`}
+                          </span>
+                          <button type="button" className="ghost" onClick={() => setSemitones((s) => s + 1)}>+</button>
+                        </div>
+                        {semitones !== 0 && (
+                          <button type="button" className="ghost" onClick={() => setSemitones(0)}>Reset</button>
+                        )}
+                        {keyLabel && <span className="status-pill">Key: {keyLabel}</span>}
+                        {chart.capo > 0 && <span className="status-pill">Capo {chart.capo}</span>}
+                        {charts.length > 1 && (
+                          <button type="button" className="ghost chord-btn" onClick={() => setShowChartList((v) => !v)}>
+                            {showChartList ? "Hide charts" : `${charts.length} charts ▾`}
+                          </button>
+                        )}
+                        {onSaveChart && (
+                          <button type="button" className="ghost chord-btn" onClick={() => onSaveChart(chart)}>
+                            Save to band
+                          </button>
+                        )}
+                        {chart.url_web && (
+                          <a href={chart.url_web} target="_blank" rel="noreferrer" style={{ fontSize: "0.82rem", marginTop: 0 }}>
+                            View on UG
+                          </a>
+                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginLeft: "auto" }}>
+                          <span className="tiny-label">Scroll</span>
+                          {[["Off", 0], ["Slow", 12], ["Med", 22], ["Fast", 40]].map(([label, speed]) => (
+                            <button
+                              key={label}
+                              type="button"
+                              className={`ghost chord-btn${scrollSpeed === speed ? " active-toggle" : ""}`}
+                              onClick={() => { setScrollSpeed(speed); setScrollPaused(false); }}
+                            >{label}</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {showChartList && (
+                        <div className="file-list" style={{ maxHeight: 140, overflowY: "auto", flexShrink: 0 }}>
+                          {charts.map((tab) => (
+                            <article
+                              className="file-row"
+                              key={tab.id}
+                              style={{ cursor: "pointer", background: chart?.id === tab.id ? "rgba(53,208,186,0.08)" : undefined }}
+                              onClick={() => selectChart(tab)}
+                            >
+                              <div className="file-main">
+                                <p className="item-title" style={{ fontSize: "0.88rem" }}>{tab.song_name}</p>
+                                <p className="item-date">
+                                  {tab.artist_name} · v{tab.version}
+                                  {tab.tonality_name ? ` · Key ${tab.tonality_name}` : ""}
+                                  {tab.rating ? ` · ★ ${Number(tab.rating).toFixed(1)}` : ""}
+                                </p>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+
+                      <div
+                        className="discover-chord-scroll"
+                        ref={chordScrollRef}
+                        onWheel={handleManualScroll}
+                        onTouchStart={handleManualScroll}
+                      >
+                        <div
+                          className="chord-content"
+                          dangerouslySetInnerHTML={{ __html: parseChordContent(chart.content, semitones) }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {chartLoading ? (
+                        <p className="empty">Loading chord chart…</p>
+                      ) : (
+                        <p className="empty">No chord chart found. Try editing the title or artist above and hit Update.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="learn-empty">
+                <p className="empty">
+                  Pick a song from the setlist — the YouTube video and chord chart load together,
+                  Chordify-style. Mark songs with ✓ as you learn them.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1934,6 +2374,13 @@ export default function App() {
             onClick={() => setActivePage("discover")}
           >
             Discover
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${activePage === "learn" ? "active" : ""}`}
+            onClick={() => setActivePage("learn")}
+          >
+            Learn
           </button>
 
           {isEventPage && (
@@ -4038,6 +4485,14 @@ export default function App() {
           onDiscoverAddMemberChange={setDiscoverAddMember}
           discoverAddFolder={discoverAddFolder}
           onDiscoverAddFolderChange={setDiscoverAddFolder}
+        />
+      )}
+
+      {activePage === "learn" && (
+        <LearnViewer
+          playlist={FREEZ_CAREEB_PLAYLIST}
+          onBack={() => setActivePage("events")}
+          onSaveChart={saveChordChart}
         />
       )}
       </>
